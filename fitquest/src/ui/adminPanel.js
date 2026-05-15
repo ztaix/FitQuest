@@ -31,6 +31,15 @@ export function createBindAdminListeners(deps) {
         } else if (action === 'toggle') {
           adminActions.toggleDisabled(b.dataset.id);
           getRenderAdmin()();
+        } else if (action === 'reset-override') {
+          if (!confirm('Réinitialiser cet élément aux valeurs de base ?')) return;
+          const state = getState();
+          if (state?.player?.custom?.overrides) {
+            delete state.player.custom.overrides[b.dataset.id];
+            saveState();
+            getRenderAdmin()();
+            showToast('↩ Valeurs d\'origine restaurées');
+          }
         } else if (action === 'add-recipe') {
           adminForms.openRecipeEdit(b.dataset.recipeType);
         } else if (action === 'delete-recipe') {
@@ -82,11 +91,13 @@ export function createBindAdminListeners(deps) {
           ingredients: [],
           blacksmith: [],
           witch: [],
+          spells: [],
           disabledIds: [],
+          overrides: {},
         };
         saveState();
         getRenderAdmin()();
-        showToast('✓ Custom effacé');
+        showToast('\u2713 Custom effac\u00e9');
       });
       $('btnResetFull').addEventListener('click', () => {
         if (!confirm('Effacer TOUTE la progression et tout le custom ?')) return;

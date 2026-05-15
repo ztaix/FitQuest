@@ -269,6 +269,42 @@
 .action-btn.skill.active .sub{color:#2b1701;}
 .action-btn.potion{border-color:var(--success);}
 
+/* ── Limite (FF7-style) ─────────────────────────────────────── */
+.combat-limit-section{display:flex;flex-direction:column;gap:5px;width:100%;}
+.combat-limit-bar-row{display:flex;align-items:center;gap:5px;width:100%;}
+.combat-limit-label{font-family:'Cinzel',serif;font-weight:900;font-size:8px;letter-spacing:0.1em;color:#fde68a;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
+.combat-limit-track{flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,0.5);border:1px solid rgba(253,230,138,0.35);overflow:hidden;}
+.combat-limit-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width 0.4s ease;}
+.combat-limit-fill--ready{background:linear-gradient(90deg,#facc15,#fff176);box-shadow:0 0 8px rgba(250,204,21,0.8);animation:limitPulse 0.8s ease-in-out infinite alternate;}
+@keyframes limitPulse{from{opacity:0.85;}to{opacity:1;box-shadow:0 0 16px rgba(250,204,21,1);}}
+.action-btn.skill.limit-ready{background:linear-gradient(180deg,#fbbf24 0%,#b45309 100%);color:#120b02;border-color:#fde68a;box-shadow:0 0 22px rgba(251,191,36,0.75),inset 0 1px 0 rgba(255,255,255,0.4);animation:limitGlow 1s ease-in-out infinite alternate;}
+@keyframes limitGlow{from{box-shadow:0 0 14px rgba(251,191,36,0.6);}to{box-shadow:0 0 28px rgba(251,191,36,0.9),0 0 42px rgba(253,230,138,0.4);}}
+.action-btn.skill.limit-buff-active{background:linear-gradient(180deg,#f97316 0%,#7c2d12 100%);border-color:#fed7aa;color:#fff;}
+.action-btn-sub{font-size:8px;color:#bfdbfe;letter-spacing:0.02em;text-transform:none;line-height:1.15;text-align:center;margin-top:1px;}
+.action-btn.skill.limit-ready .action-btn-sub{color:#2b1701;font-weight:700;}
+.action-btn.skill.limit-buff-active .action-btn-sub{color:#fed7aa;}
+
+/* ── Menu Limites (onglet inventaire) ───────────────────────── */
+.limit-menu-bar-block{background:rgba(0,0,0,0.35);border:1px solid rgba(253,230,138,0.3);border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+.limit-menu-bar-label{font-family:'Cinzel',serif;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#e2e8f0;}
+.limit-card{background:linear-gradient(135deg,rgba(15,12,45,0.95) 0%,rgba(8,8,28,0.95) 100%);border:1px solid var(--limit-color,rgba(219,234,254,0.3));border-radius:8px;padding:12px;margin-bottom:8px;}
+.limit-card--equipped{border-width:2px;box-shadow:0 0 14px rgba(var(--limit-color,219,234,254),0.25);}
+.limit-card--locked{opacity:0.65;border-color:rgba(148,163,184,0.25);}
+.limit-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
+.limit-card-name{font-family:'Cinzel',serif;font-weight:700;font-size:13px;letter-spacing:0.05em;}
+.limit-card-name--locked{color:var(--text-faint)!important;}
+.limit-card-badges{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.limit-badge-equipped{background:rgba(74,222,128,0.18);color:#86efac;border:1px solid rgba(74,222,128,0.4);border-radius:4px;font-size:9px;padding:2px 6px;font-weight:700;white-space:nowrap;}
+.limit-card-effect{font-size:9px;color:#bfdbfe;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);border-radius:4px;padding:2px 6px;white-space:nowrap;}
+.limit-card-effect--locked{opacity:0.5;}
+.limit-card-desc{font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:8px;line-height:1.4;}
+.limit-card-desc--locked{opacity:0.6;}
+.limit-card-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.limit-card-uses{font-size:10px;color:var(--text-faint);}
+.limit-unlock-cond{font-size:10px;color:#fbbf24;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:3px 8px;}
+.limit-equip-btn{font-family:'Cinzel',serif;font-weight:700;font-size:10px;letter-spacing:0.05em;text-transform:uppercase;background:transparent;border:1px solid var(--limit-color,rgba(219,234,254,0.5));color:var(--limit-color,#e2e8f0);border-radius:4px;padding:5px 14px;cursor:pointer;}
+.limit-equip-btn:active{opacity:0.8;}
+
 @media (max-width:520px){
   .combat-banner{min-height:610px;}
   .combat-stage{min-height:610px;padding:8px 10px 10px;}
@@ -486,10 +522,45 @@
 .form-row textarea{min-height:50px;resize:vertical;}
 .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 
+/* Tableau records personnels */
+.rec-group{margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.rec-group-header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.25);cursor:pointer;user-select:none;}
+.rec-group-header:active{background:rgba(0,0,0,0.4);}
+.rec-group-title{font-family:'Cinzel',serif;font-weight:700;font-size:12px;color:var(--gold);flex:1;letter-spacing:0.08em;}
+.rec-group-total{font-size:12px;color:#7DD3FC;font-weight:700;}
+.rec-group-chevron{font-size:10px;color:var(--text-faint);}
+.rec-group-body{padding:6px 0;}
+.rec-ex-row{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;}
+.rec-ex-row:last-child{border-bottom:none;}
+.rec-ex-row--empty{opacity:0.45;}
+.rec-ex-name{color:var(--text-dim);flex:1;}
+.rec-ex-bonus{display:inline-block;margin-left:6px;font-size:10px;color:#7DD3FC;font-weight:700;}
+.rec-ex-val{color:var(--text-faint);font-size:11px;}
+.rec-ex-val--set{color:var(--gold);font-family:'Cinzel',serif;font-weight:700;font-size:12px;}
+
 .export-area{width:100%;background:rgba(0,0,0,0.5);border:1px solid var(--border-strong);border-radius:6px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;min-height:120px;resize:vertical;}
 
-.steps-dash-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px solid var(--border);font-size:11px;}
+.steps-dash-row{display:none;/* Feature pas activée pour le moment */align-items:center;justify-content:space-between;margin-top:10px;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px solid var(--border);font-size:11px;}
 .steps-dash-row .btn{font-size:10px;padding:6px 10px;}
+
+/* Zone list GPS travel button */
+.zone-list-item.travel-ready{border-color:rgba(34,197,94,0.4);}
+.btn-gps-travel{display:block;width:100%;margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,rgba(34,197,94,0.2),rgba(16,185,129,0.1));border:1px solid rgba(34,197,94,0.6);border-radius:8px;color:#4ade80;font-size:13px;font-weight:700;letter-spacing:0.05em;cursor:pointer;text-align:center;}
+.btn-gps-travel:active{transform:scale(0.97);background:rgba(34,197,94,0.3);}
+
+/* GPS Travel Modal */
+.gps-travel-modal{max-width:340px;}
+.gps-progress-block{background:rgba(0,0,0,0.35);border:1px solid var(--border);border-radius:12px;padding:20px 16px;margin:16px 0;text-align:center;}
+.gps-km-display{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-bottom:14px;}
+.gps-km-done{font-family:'Cinzel',serif;font-weight:900;font-size:36px;color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.5);}
+.gps-km-sep{font-size:20px;color:var(--text-dim);}
+.gps-km-target{font-family:'Cinzel',serif;font-weight:700;font-size:22px;color:var(--text-dim);}
+.gps-km-unit{font-size:14px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.1em;}
+.gps-bar-track{height:10px;background:rgba(0,0,0,0.5);border:1px solid var(--border);border-radius:5px;overflow:hidden;margin-bottom:12px;}
+.gps-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#16a34a,#4ade80);box-shadow:0 0 10px rgba(74,222,128,0.5);transition:width 0.6s ease;}
+.gps-status{font-size:12px;color:var(--text-dim);letter-spacing:0.03em;}
+.gps-info-box{background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:left;}
+.gps-info-box p{font-size:11px;color:var(--text-faint);margin:4px 0;}
 
 #viewPreSession.active{
   background:radial-gradient(ellipse 100% 60% at 50% -15%,rgba(155,92,255,0.14) 0%,transparent 55%),
@@ -1591,8 +1662,19 @@
   .presession-dmg-in-bar{font-size:13px;padding-left:10px;}
 }
 
+/* Onglets quêtes */
+.quest-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;}
+.quest-tab{flex:1;min-width:90px;padding:7px 6px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:11px;font-family:'Cinzel',serif;font-weight:700;letter-spacing:0.05em;cursor:pointer;position:relative;white-space:nowrap;text-align:center;}
+.quest-tab.active{background:linear-gradient(135deg,rgba(212,175,55,0.2),rgba(212,175,55,0.05));border-color:var(--gold);color:var(--gold);}
+.quest-tab-badge{position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#000;font-size:9px;font-weight:900;border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;}
+.quest-tab-counter{display:block;font-size:9px;color:var(--text-faint);font-family:sans-serif;font-weight:400;letter-spacing:0;margin-top:3px;}
+
+/* Cartes quêtes */
 .quest-card{background:linear-gradient(135deg,var(--bg-card) 0%,var(--bg-mid) 100%);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
 .quest-card.quest-done{opacity:0.65;border-color:var(--success);}
+.quest-card.quest-completable{border-color:var(--gold);box-shadow:0 0 12px rgba(212,175,55,0.3);animation:questGlow 2s ease-in-out infinite;}
+@keyframes questGlow{0%,100%{box-shadow:0 0 8px rgba(212,175,55,0.2);}50%{box-shadow:0 0 18px rgba(212,175,55,0.5);}}
+.quest-ready-badge{display:inline-block;background:rgba(212,175,55,0.25);color:var(--gold-bright);font-size:9px;font-family:sans-serif;font-weight:700;letter-spacing:0.05em;border-radius:4px;padding:1px 6px;margin-left:6px;text-transform:uppercase;}
 .quest-title{font-family:'Cinzel',serif;font-weight:700;font-size:13px;color:var(--gold-bright);margin-bottom:4px;}
 .quest-desc{font-size:11px;color:var(--text-dim);line-height:1.4;margin-bottom:8px;}
 .quest-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;}

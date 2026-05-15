@@ -23,6 +23,7 @@ import { playBossIdleOrFury } from './renderCombatFx.js';
 import { mountBossSpriteDebugStrip } from './bossSpriteDebug.js';
 import { bossLevelBadgeUrl } from './gameIcons.js';
 import { uiCtx } from './renderContext.js';
+import { getEquippedLimit } from '../core/limitBreak.js';
 
 /** Mettre à true pour réafficher « Modifier les exercices » et « Réduire la séance » (pré-séance). */
 const SHOW_PRESESSION_TWEAK_ACTIONS = false;
@@ -222,8 +223,18 @@ export function renderPreSessionView() {
     uiCtx.saveState();
   }
   const tier = getDifficultyTier(boss.level);
-  const genOpts = presessionNumExOverride != null ? { numEx: presessionNumExOverride } : {};
-  const proposed = uiCtx.generateProposedExercises(boss, genOpts);
+  // Tâche 1 : verrouiller les exercices dès la première vue pré-session
+  let proposed;
+  if (boss.lockedExercises && boss.lockedExercises.length > 0) {
+    proposed = boss.lockedExercises
+      .map((id) => uiCtx.allExercises().find((e) => e.id === id))
+      .filter(Boolean);
+  } else {
+    const genOpts = presessionNumExOverride != null ? { numEx: presessionNumExOverride } : {};
+    proposed = uiCtx.generateProposedExercises(boss, genOpts);
+    state.boss.current.lockedExercises = proposed.map((e) => e.id);
+    uiCtx.saveState();
+  }
   const counterT = COUNTER_TYPE[boss.type];
   const color = RARITY_COLORS[boss.rarity] || RARITY_COLORS.common;
   const fallback = FALLBACK_BOSS[boss.id] || FALLBACK_BOSS.default;
@@ -303,6 +314,19 @@ export function renderPreSessionView() {
             : `<span class="presession-dmg-line presession-dmg-line--normal">${dmgInner}</span>`;
       const volLine = `${tier.sets}×${suggestedVol} ${unitLabel}${ex.hasWeight ? ' · 🏋' : ''}`;
       const typeCls = TYPE_CSS[ex.type] || '';
+      // Tâche 6/11 : afficher le record personnel (kg + volume)
+      const recKg = ex.hasWeight ? (state.player.records[ex.id] || 0) : 0;
+      const recVol = (state.player.records_vol || {})[ex.id] || 0;
+      const recUnit = ex.unit === 'seconds' ? 'sec' : 'reps';
+      let recordHtml = '';
+      if (recKg > 0 || recVol > 0) {
+        const parts = [];
+        if (recKg > 0) parts.push(`${recKg} kg`);
+        if (recVol > 0) parts.push(`${recVol} ${recUnit}`);
+        recordHtml = `<span class="presession-personal-record">🏆 Record : <strong>${parts.join(' · ')}</strong></span>`;
+      } else {
+        recordHtml = `<span class="presession-personal-record presession-personal-record--none">🏆 Pas encore de record</span>`;
+      }
       return `<div class="exercise-card presession-exercise ${typeCls}" style="--presession-dmg-fade-start:${dmgFadeStart}%;--presession-dmg-pct:${dmgPct}%;">
   <div class="exercise-info">
     <div class="exercise-name presession-exercise-title"><span class="presession-exercise-name-text">${ex.name}</span><span class="presession-exercise-volume">${volLine}</span></div>
@@ -312,6 +336,7 @@ export function renderPreSessionView() {
         <span class="presession-dmg-in-bar">${dmgCore}</span>
       </div>
     </div>
+    ${recordHtml}
   </div>
 </div>`;
     })
@@ -383,8 +408,14 @@ export function renderSessionView() {
   const fallback = FALLBACK_BOSS[b.id] || FALLBACK_BOSS.default;
   const hpPct = (b.hp / b.hp_max) * 100;
   const playerHpPct = (state.player.stats.hp_current / state.player.stats.constitution) * 100;
-  const skillUsed = !!(state.boss.current && state.boss.current.heroSkillUsed);
-  const tokenUsed = !!(state.session_current.skillArmed || state.session_current.spellUsedThisTurn);
+  const tokenUsed = !!state.session_current.spellUsedThisTurn;
+  // Limite (FF7-style)
+  const equippedLimit = getEquippedLimit(state);
+  const limitBar = state.player.limitBar || 0;
+  const limitPct = Math.round(limitBar * 100);
+  const limitReady = equippedLimit && limitBar >= (equippedLimit.barRequired || 1.0);
+  const limitName = equippedLimit ? equippedLimit.name : 'Limite';
+  const limitBuffTurns = state.session_current.limitBuffTurns || 0;
   const mpMax = state.player.stats.mana || 100,
     mp = state.player.stats.mp_current || 0;
   const mpPct = (mp / mpMax) * 100;
@@ -407,7 +438,12 @@ export function renderSessionView() {
   const itemPotionHtml = `<button class="action-btn potion" id="actPotion" ${state.player.potions <= 0 ? 'disabled' : ''}><div class="ico">🧪</div>Potion<div class="sub">+50 PV · ${state.player.potions}</div></button>`;
   const enemyTypeLine = `<span class="type-tag ${TYPE_CSS[b.type]} cycle-trigger specialty-cycle-trigger" data-cycle-kind="specialty" title="Voir le cadran des spécialités">${TYPE_ICON[b.type]} ${TYPE_LABEL[b.type]}</span>${b.element ? elementTag(b.element, { interactive: true }) : ''}`;
   const combatPlayerStatusHtml = `<div class="combat-status-panel combat-status-player"><div class="combat-status-title"><span>${state.player.name || 'Champion'}</span><span>Niv. ${state.player.level ?? 1}</span></div><div class="combat-stat-line"><span>PV</span><strong id="playerHpText">${state.player.stats.hp_current} / ${state.player.stats.constitution}</strong></div><div class="bar"><div class="bar-fill hp" id="playerHpBar" style="width:${playerHpPct}%"></div></div><div class="combat-stat-line"><span>MP</span><strong id="playerMpText">${mp} / ${mpMax}</strong></div><div class="bar"><div class="bar-fill mp" id="playerMpBar" style="width:${mpPct}%"></div></div></div>`;
-  const combatCommandColumnHtml = `<div class="combat-command-panel combat-command-panel--side"><button type="button" class="action-btn skill combat-command-head combat-command-skill-full ${tokenUsed || skillUsed ? '' : 'active'}" id="actSkill" ${skillUsed || tokenUsed ? 'disabled' : ''} title="${skillUsed ? 'Déjà utilisée' : tokenUsed ? 'Tour pris' : 'Héroïque ×2'}"><span class="action-btn-inline"><span class="ico">⚡</span><span class="action-btn-text">Frappe</span></span></button><div class="combat-special-actions" role="group" aria-label="Actions spéciales"><button type="button" class="action-btn combat-drawer-toggle combat-special-toggle" id="toggleSpellDrawer" aria-expanded="false" aria-controls="combatSpellDrawer"><span class="ico">✨</span><span class="action-btn-text">Sorts</span></button><button type="button" class="action-btn combat-drawer-toggle combat-drawer-toggle--items combat-special-toggle" id="toggleItemDrawer" aria-expanded="false" aria-controls="combatItemDrawer"><span class="ico">🎒</span><span class="action-btn-text">Objets</span></button></div></div>`;
+  const limitSubLabel = limitReady
+    ? 'LIMITE !'
+    : limitBuffTurns > 0
+      ? `💥 ×2 (${limitBuffTurns} ex.)`
+      : `${limitPct}%`;
+  const combatCommandColumnHtml = `<div class="combat-command-panel combat-command-panel--side"><div class="combat-limit-section"><div class="combat-limit-bar-row" title="${limitName} — ${limitPct}%"><span class="combat-limit-label">LIMITE</span><div class="combat-limit-track"><div class="combat-limit-fill ${limitReady ? 'combat-limit-fill--ready' : ''}" id="limitBarFill" style="width:${limitPct}%"></div></div></div><button type="button" class="action-btn skill combat-command-head combat-command-skill-full ${limitReady ? 'active limit-ready' : limitBuffTurns > 0 ? 'active limit-buff-active' : ''}" id="actLimit" ${!limitReady ? 'disabled' : ''} title="${limitReady ? limitName + ' — Déclencher !' : limitBuffTurns > 0 ? limitName + ' actif' : limitName + ' — Barre à ' + limitPct + '%'}"><span class="action-btn-inline"><span class="ico">💥</span><span class="action-btn-text">${limitName}</span></span><span class="action-btn-sub">${limitSubLabel}</span></button></div><div class="combat-special-actions" role="group" aria-label="Actions spéciales"><button type="button" class="action-btn combat-drawer-toggle combat-special-toggle" id="toggleSpellDrawer" aria-expanded="false" aria-controls="combatSpellDrawer"><span class="ico">✨</span><span class="action-btn-text">Sorts</span></button><button type="button" class="action-btn combat-drawer-toggle combat-drawer-toggle--items combat-special-toggle" id="toggleItemDrawer" aria-expanded="false" aria-controls="combatItemDrawer"><span class="ico">🎒</span><span class="action-btn-text">Objets</span></button></div></div>`;
   const combatDrawersHtml = `<div class="combat-hud-drawers"><div class="combat-drawer combat-spell-drawer" id="combatSpellDrawer" role="region" aria-label="Sorts équipés"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${spellButtons}</div></div></div><div class="combat-drawer combat-item-drawer" id="combatItemDrawer" role="region" aria-label="Objets"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${itemPotionHtml}</div></div></div></div>`;
   const combatHudHtml = `<div class="combat-ff7-hud"><div class="combat-hud-player-row">${combatPlayerStatusHtml}${combatCommandColumnHtml}</div>${combatDrawersHtml}</div>`;
   const combatBannerEl = $('combatBanner');
@@ -454,17 +490,12 @@ export function renderSessionView() {
       openExerciseModal(id);
     });
   });
-  $('actSkill').addEventListener('click', () => {
-    if (state.boss.current && state.boss.current.heroSkillUsed) return;
-    if (state.session_current.skillArmed || state.session_current.spellUsedThisTurn) {
-      uiCtx.showToast('⚠ Action déjà utilisée ce tour');
-      return;
-    }
-    uiCtx.showToast('⚡ Frappe Héroïque chargée ! Le prochain exercice infligera ×2 dégâts.', 3000);
-    state.session_current.skillArmed = true;
-    uiCtx.saveState();
-    renderSessionView();
-  });
+  const actLimitBtn = combatBannerEl.querySelector('#actLimit') || $('actLimit');
+  if (actLimitBtn) {
+    actLimitBtn.addEventListener('click', () => {
+      uiCtx.activateLimit();
+    });
+  }
   $('actPotion').addEventListener('click', () => {
     if (state.player.potions <= 0) {
       uiCtx.showToast('⚠ Plus de potions');
@@ -532,15 +563,15 @@ export function updateDamagePreview() {
   const sets = parseInt($('exSets').value) || 0;
   const repsOrSec = parseInt($('exReps').value) || 0;
   const weight = parseFloat($('exWeight').value) || 0;
-  const skillArmed = state.session_current && state.session_current.skillArmed;
-  const dmg = uiCtx.computeExerciseDamage(currentExerciseId, sets, repsOrSec, weight, { skill: skillArmed });
+  const limitBuff = state.session_current && (state.session_current.limitBuffTurns || 0) > 0;
+  const dmg = uiCtx.computeExerciseDamage(currentExerciseId, sets, repsOrSec, weight, { skill: limitBuff });
   $('damagePreviewValue').textContent = dmg;
   const isGood = isGoodMatchup(ex.type, state.boss.current.type);
   const isWeak = isWeakMatchup(ex.type, state.boss.current.type);
   let note = '';
   if (isGood) note = '🟢 Bon matchup actif (+50%)';
   else if (isWeak) note = `🔴 Mauvais matchup (−${MATCHUP_WEAK_PCT_LABEL} % sur les dégâts de base)`;
-  if (skillArmed) note += (note ? '<br>' : '') + '⚡ Frappe Héroïque armée (×2)';
+  if (limitBuff) note += (note ? '<br>' : '') + `💥 Limite active ×2 (${state.session_current.limitBuffTurns} exercise${state.session_current.limitBuffTurns > 1 ? 's' : ''} restant${state.session_current.limitBuffTurns > 1 ? 's' : ''})`;
   $('matchupNote').innerHTML = note;
 }
 
@@ -576,18 +607,18 @@ export function openExerciseModalRecovery(exerciseId) {
   $('exModalName').textContent = ex.name;
   $('exModalIcon').textContent = TYPE_ICON[ex.type];
   $('exModalDesc').textContent = ex.desc;
-  $('exModalMatchup').innerHTML = `<span class="type-tag ${TYPE_CSS[ex.type]}">${TYPE_LABEL[ex.type]}</span> <span style="color:var(--success);font-size:11px;font-weight:700;">⚕ Convalescence</span>`;
+  $('exModalMatchup').innerHTML = `<span class="type-tag ${TYPE_CSS[ex.type]}">${TYPE_LABEL[ex.type]}</span> <span style="color:var(--success);font-size:11px;font-weight:700;">\u2695 Convalescence</span>`;
   $('exSets').value = 2;
   if (ex.unit === 'seconds') {
     $('exRepsLabel').textContent = 'Secondes';
     $('exReps').value = 20;
   } else {
-    $('exRepsLabel').textContent = 'Répétitions';
+    $('exRepsLabel').textContent = 'R\u00e9p\u00e9titions';
     $('exReps').value = 8;
   }
   $('exWeight').value = 0;
   $('exWeightContainer').style.display = ex.hasWeight ? '' : 'none';
-  $('damagePreviewValue').textContent = '—';
-  $('matchupNote').innerHTML = '<span style="color:var(--success);">Aucun dégât (récupération)</span>';
+  $('damagePreviewValue').textContent = '\u2014';
+  $('matchupNote').innerHTML = '<span style="color:var(--success);">Aucun d\u00e9g\u00e2t (r\u00e9cup\u00e9ration)</span>';
   uiCtx.openModal('exerciseModal');
 }

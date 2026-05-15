@@ -11,6 +11,15 @@ import { ZONE_SVG } from '../data/zones.js';
 import { computeEquipmentBonus, getEffectiveStats, xpForNextLevel } from '../core/progression.js';
 import { registerZoneVisit } from '../core/questEngine.js';
 import { uiCtx } from './renderContext.js';
+import { startGpsTravel } from '../native/gpsTracker.js';
+
+/* GPS tracker handle — kept outside functions so stop() is accessible */
+let _gpsTracker = null;
+
+/* Listen for cancel signal from app.js */
+document.addEventListener('gps-travel-cancel', () => {
+  if (_gpsTracker) { _gpsTracker.stop(); _gpsTracker = null; }
+});
 
 export function renderZoneBanner() {
   const state = uiCtx.getState();
@@ -39,6 +48,13 @@ export function renderZoneBanner() {
   $('btnTravel').addEventListener('click', openZoneTravel);
 }
 
+/** Returns true if level + boss conditions are met for a zone (regardless of unlock/GPS) */
+function zoneConditionsMet(z, state) {
+  if (state.player.level < z.requiredLevel) return false;
+  if (z.requiredRegionalBoss && !state.player.defeatedRegionalBosses.includes(z.requiredRegionalBoss)) return false;
+  return true;
+}
+
 export function openZoneTravel() {
   const state = uiCtx.getState();
   const $ = uiCtx.$;
@@ -48,20 +64,33 @@ export function openZoneTravel() {
     .map((z) => {
       const isActive = z.id === state.player.currentZone;
       const isUnlocked = state.player.unlockedZones.includes(z.id);
-      let canUnlock = false;
-      if (!isUnlocked) {
-        canUnlock = uiCtx.isZoneUnlocked(z.id);
-        if (canUnlock) state.player.unlockedZones.push(z.id);
-      }
-      const status = isActive ? '⭐ Zone actuelle' : isUnlocked ? '✓ Débloquée' : '🔒 Verrouillée';
-      const cls = isActive ? 'active' : isUnlocked ? 'unlocked' : 'locked';
-      const customBg = z.bgImage;
+      const conditionsMet = !isUnlocked && zoneConditionsMet(z, state);
+      const travelKm = z.travelKm ?? 0;
+
       const svg = ZONE_SVG[z.svgKey] || ZONE_SVG.default;
-      const bgHtml = customBg
-        ? `<img src="${customBg}" alt="" onerror="this.parentNode.innerHTML='${svg.replace(/"/g, '&quot;').replace(/\n/g, '')}'">`
+      const bgHtml = z.bgImage
+        ? `<img src="${z.bgImage}" alt="" onerror="this.parentNode.innerHTML='${svg.replace(/"/g, '&quot;').replace(/\n/g, '')}'">`
         : svg;
-      let req = '';
-      if (!isUnlocked) {
+
+      let statusLabel, cls, extraHtml;
+
+      if (isActive) {
+        statusLabel = '⭐ Zone actuelle';
+        cls = 'active';
+        extraHtml = '';
+      } else if (isUnlocked) {
+        statusLabel = '✓ Débloquée';
+        cls = 'unlocked';
+        extraHtml = '';
+      } else if (conditionsMet && travelKm > 0) {
+        // Conditions met → show GPS travel button
+        statusLabel = '🏃 Voyage requis';
+        cls = 'travel-ready';
+        extraHtml = `<button class="btn btn-gps-travel" data-gps-zone="${z.id}" data-gps-km="${travelKm}">🏃 Faire le voyage · ${travelKm} km</button>`;
+      } else {
+        // Locked — show missing requirements
+        statusLabel = '🔒 Verrouillée';
+        cls = 'locked';
         const issues = [];
         if (state.player.level < z.requiredLevel)
           issues.push(`niveau ${z.requiredLevel} requis (vous : ${state.player.level})`);
@@ -69,23 +98,25 @@ export function openZoneTravel() {
           const rb = uiCtx.allBosses().find((b) => b.id === z.requiredRegionalBoss);
           issues.push(`vaincre ${rb ? rb.name : 'le boss régional précédent'}`);
         }
-        req = `<div class="req">⚠ ${issues.join(' · ')}</div>`;
-      }
-      const stepCost = z.enterStepCost ?? 0;
-      const stepLine =
-        stepCost > 0
-          ? `<div class="req" style="font-size:11px;">🚶 Entrée : <strong>${stepCost}</strong> pas (solde : ${state.player.stepBalance ?? 0})</div>`
+        extraHtml = issues.length
+          ? `<div class="req">⚠ ${issues.join(' · ')}</div>`
           : '';
-      return `<div class="zone-list-item ${cls}" data-zone="${z.id}"><div class="zone-mini">${bgHtml}<div class="zone-mini-overlay"></div><div class="zone-mini-name">${z.name}</div></div><div class="status">${status}</div><div class="desc">« ${z.desc} »</div><div class="req" style="font-size:11px;color:var(--text-faint);">Niveau monstres : ${z.levelMin}-${z.levelMax}</div>${stepLine}${req}</div>`;
+      }
+
+      return `<div class="zone-list-item ${cls}" data-zone="${z.id}">
+        <div class="zone-mini">${bgHtml}<div class="zone-mini-overlay"></div><div class="zone-mini-name">${z.name}</div></div>
+        <div class="status">${statusLabel}</div>
+        <div class="desc">« ${z.desc} »</div>
+        <div class="req" style="font-size:11px;color:var(--text-faint);">Niveau monstres : ${z.levelMin}-${z.levelMax}</div>
+        ${extraHtml}
+      </div>`;
     })
     .join('');
-  list.querySelectorAll('.zone-list-item').forEach((div) => {
+
+  // Travel to already-unlocked zones
+  list.querySelectorAll('.zone-list-item.unlocked, .zone-list-item.active').forEach((div) => {
     div.addEventListener('click', () => {
       const zid = div.dataset.zone;
-      if (div.classList.contains('locked')) {
-        uiCtx.showToast('🔒 Zone verrouillée');
-        return;
-      }
       if (zid === state.player.currentZone) {
         uiCtx.showToast('⭐ Vous êtes déjà ici');
         return;
@@ -93,20 +124,23 @@ export function openZoneTravel() {
       travelToZone(zid);
     });
   });
-  uiCtx.saveState();
+
+  // GPS travel buttons
+  list.querySelectorAll('.btn-gps-travel').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const zid = btn.dataset.gpsZone;
+      const km = parseFloat(btn.dataset.gpsKm);
+      uiCtx.closeModal('zoneTravelModal');
+      launchGpsTravel(zid, km);
+    });
+  });
+
   uiCtx.openModal('zoneTravelModal');
 }
 
 export function travelToZone(zid) {
   const state = uiCtx.getState();
-  const target = uiCtx.getZoneById(zid);
-  const cost = target?.enterStepCost ?? 0;
-  const bal = state.player.stepBalance ?? 0;
-  if (cost > 0 && bal < cost) {
-    uiCtx.showToast(`🚶 Encore ${cost - bal} pas pour rejoindre ${target.name}`);
-    return;
-  }
-  if (cost > 0) state.player.stepBalance = bal - cost;
   state.player.currentZone = zid;
   state.boss.current = null;
   registerZoneVisit(state, zid, uiCtx.showToast);
@@ -115,6 +149,57 @@ export function travelToZone(zid) {
   uiCtx.refreshDashboard();
   const z = uiCtx.getZoneById(zid);
   uiCtx.showToast(`🗺 Vous voyagez vers ${z.name}`);
+}
+
+/** Open the GPS tracking modal and start tracking */
+export function launchGpsTravel(zoneId, targetKm) {
+  const state = uiCtx.getState();
+  const $ = uiCtx.$;
+  const zone = uiCtx.getZoneById(zoneId);
+
+  // Stop any ongoing tracker
+  if (_gpsTracker) { _gpsTracker.stop(); _gpsTracker = null; }
+
+  // Populate modal
+  $('gpsTravelZoneName').textContent = zone.name;
+  $('gpsTravelTarget').textContent = targetKm.toFixed(1);
+  $('gpsTravelDone').textContent = '0.00';
+  $('gpsTravelBar').style.width = '0%';
+  $('gpsTravelStatus').textContent = '📡 Acquisition du signal GPS…';
+  $('gpsTravelStatus').style.color = 'var(--text-dim)';
+
+  uiCtx.openModal('gpsTravelModal');
+
+  _gpsTracker = startGpsTravel({
+    targetKm,
+    onProgress(done, target) {
+      const pct = Math.min(100, (done / target) * 100);
+      $('gpsTravelDone').textContent = done.toFixed(2);
+      $('gpsTravelBar').style.width = `${pct.toFixed(1)}%`;
+      $('gpsTravelStatus').textContent = `🏃 En cours… ${(target - done).toFixed(2)} km restants`;
+      $('gpsTravelStatus').style.color = 'var(--text)';
+    },
+    onComplete() {
+      _gpsTracker = null;
+      $('gpsTravelStatus').textContent = '✅ Objectif atteint ! Zone débloquée !';
+      $('gpsTravelStatus').style.color = 'var(--success)';
+      $('gpsTravelBar').style.width = '100%';
+      // Unlock zone and travel
+      if (!state.player.unlockedZones.includes(zoneId)) {
+        state.player.unlockedZones.push(zoneId);
+      }
+      setTimeout(() => {
+        uiCtx.closeModal('gpsTravelModal');
+        travelToZone(zoneId);
+        uiCtx.showToast(`🗺 ${zone.name} débloquée ! Bon voyage !`, 4000);
+      }, 1500);
+    },
+    onError(msg) {
+      _gpsTracker = null;
+      $('gpsTravelStatus').textContent = `⚠ ${msg}`;
+      $('gpsTravelStatus').style.color = 'var(--blood-bright)';
+    },
+  });
 }
 
 export function renderRegionalBoss() {
@@ -282,19 +367,69 @@ export function renderRecords() {
   const $ = uiCtx.$;
   const container = $('recordsContainer');
   const records = state.player.records || {};
-  const keys = Object.keys(records);
-  if (keys.length === 0) {
-    container.innerHTML = `<div class="empty-state"><span class="icon">🏆</span>Aucun record encore.<br><small>Battez vos limites pour gagner +5 dégâts permanents.</small></div>`;
+  const recordsVol = state.player.records_vol || {};
+  const recordsBonus = state.player.records_bonus || {};
+  const allEx = uiCtx.allExercises();
+
+  // Groupes par type
+  const GROUPS = [
+    { type: 'force',     icon: '💪', label: 'Force',     statKey: 'force',   statIcon: '💪' },
+    { type: 'endurance', icon: '🛡', label: 'Endurance', statKey: 'defense', statIcon: '🛡' },
+    { type: 'agility',   icon: '⚡', label: 'Vitesse',   statKey: 'agility', statIcon: '⚡' },
+  ];
+
+  // Vérifie s'il y a au moins un record quelque part
+  const hasAny = allEx.some((e) => records[e.id] || recordsVol[e.id]);
+  if (!hasAny) {
+    container.innerHTML = `<div class="empty-state"><span class="icon">🏆</span>Aucun record encore.<br><small>Battez vos limites pour gagner +1 statistique permanente !</small></div>`;
     return;
   }
-  container.innerHTML = keys
-    .map((k) => {
-      const ex = uiCtx.allExercises().find((e) => e.id === k);
-      const label = ex ? ex.name : k;
-      const bonus = state.player.records_bonus[k] || 0;
-      return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--text-dim);">${label}${bonus ? ` <small style="color:var(--rarity-rare);">+${bonus} dég.</small>` : ''}</span><span style="color:var(--gold);font-family:'Cinzel',serif;font-weight:700;">${records[k]} kg</span></div>`;
-    })
-    .join('');
+
+  // Détermine si une section est ouverte (persisté en mémoire vive)
+  if (!renderRecords._open) renderRecords._open = { force: true, endurance: true, agility: true };
+
+  container.innerHTML = GROUPS.map(({ type, icon, label, statKey, statIcon }) => {
+    const exercises = allEx.filter((e) => e.type === type);
+    // Total stat gagnée pour ce groupe
+    const totalBonus = exercises.reduce((sum, e) => sum + (recordsBonus[e.id] || 0), 0);
+    const totalLabel = totalBonus > 0 ? `+${totalBonus} ${statIcon}` : '—';
+    const isOpen = renderRecords._open[type];
+
+    const rows = exercises.map((e) => {
+      const kg = records[e.id] || 0;
+      const vol = recordsVol[e.id] || 0;
+      const bonus = recordsBonus[e.id] || 0;
+      const hasRecord = kg > 0 || vol > 0;
+      const unit = e.unit === 'seconds' ? 'sec' : 'reps';
+      const parts = [];
+      if (kg > 0) parts.push(`${kg} kg`);
+      if (vol > 0) parts.push(`${vol} ${unit}`);
+      const recStr = hasRecord ? parts.join(' · ') : '–';
+      const bonusStr = bonus > 0 ? `<span class="rec-ex-bonus">+${bonus} ${statIcon}</span>` : '';
+      return `<div class="rec-ex-row ${hasRecord ? '' : 'rec-ex-row--empty'}">
+        <span class="rec-ex-name">${e.name}${bonusStr}</span>
+        <span class="rec-ex-val ${hasRecord ? 'rec-ex-val--set' : ''}">${recStr}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="rec-group" data-rec-type="${type}">
+      <div class="rec-group-header" data-rec-toggle="${type}">
+        <span class="rec-group-title">${icon} ${label}</span>
+        <span class="rec-group-total">${totalLabel}</span>
+        <span class="rec-group-chevron">${isOpen ? '▲' : '▼'}</span>
+      </div>
+      <div class="rec-group-body" style="display:${isOpen ? 'block' : 'none'};">${rows}</div>
+    </div>`;
+  }).join('');
+
+  // Listeners toggle
+  container.querySelectorAll('[data-rec-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.recToggle;
+      renderRecords._open[t] = !renderRecords._open[t];
+      renderRecords();
+    });
+  });
 }
 
 export function renderBoss() {

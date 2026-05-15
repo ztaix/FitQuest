@@ -90,8 +90,9 @@
   <div class="combat-banner" id="combatBanner"></div>
   <div class="section-label"><span>Vos coups à porter</span><span style="font-size:10px;color:var(--text-dim);" id="exerciseCount"></span></div>
   <div id="sessionExerciseList"></div>
-  <div style="margin-top:20px;">
-    <button class="btn btn-success" id="btnFinishSession" style="width:100%;font-size:14px;">Terminer la séance</button>
+  <div style="margin-top:20px;display:grid;grid-template-columns:1fr auto;gap:10px;">
+    <button class="btn btn-success" id="btnFinishSession" style="font-size:14px;">Terminer la séance</button>
+    <button class="btn" id="btnAbandonSession" style="background:rgba(139,0,0,0.25);border:1px solid var(--blood-bright);color:var(--blood-bright);font-size:12px;padding:0 14px;white-space:nowrap;" title="Fuir le combat — le boss s'enfuit, aucun gain">🏃 Fuir</button>
   </div>
 </div>
 
@@ -108,9 +109,11 @@
   </div>
   <div class="tabs">
     <button class="tab active" data-tab="inventory">🎒 Sac</button>
+    <button class="tab" data-tab="spells">🪄 Sorts</button>
     <button class="tab" data-tab="blacksmith">⚒ Forgeron</button>
     <button class="tab" data-tab="witch">🧙‍♀️ Sorcière</button>
     <button class="tab" data-tab="merchant">🏪 Marchand</button>
+    <button class="tab" data-tab="limites">💥 Limites</button>
   </div>
   <div id="tabInventory">
     <div class="filter-row" id="invTypeFilters">
@@ -121,6 +124,12 @@
     </div>
     <div id="inventoryGrid"></div>
   </div>
+  <div id="tabSpells" style="display:none;">
+    <div class="section-label"><span>🪄 Sorts équipés</span><span class="section-label-meta">3 emplacements</span></div>
+    <div id="spellSlots"></div>
+    <div class="section-label" style="margin-top:16px;"><span>📚 Sorts disponibles</span></div>
+    <div id="spellCatalog"></div>
+  </div>
   <div id="tabBlacksmith" style="display:none;">
     <div class="section-label"><span>⚒ Forgeron</span></div>
     <div style="font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;padding:10px;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px;">« Apporte-moi tes matériaux et un peu d'or, je te forgerai une lame digne de toi. »</div>
@@ -130,6 +139,11 @@
     <div class="section-label"><span>🧙‍♀️ Sorcière</span></div>
     <div style="font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;padding:10px;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px;">« Le pouvoir des herbes... voilà ce dont tu as besoin, voyageur. »</div>
     <div id="witchRecipes"></div>
+  </div>
+  <div id="tabLimites" style="display:none;">
+    <div class="section-label"><span>💥 Limites</span></div>
+    <div style="font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;padding:10px;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px;">« Laisse la douleur se transformer en puissance. Quand la barre est pleine — déchaîne-toi. »</div>
+    <div id="limitesContent"></div>
   </div>
   <div id="tabMerchant" style="display:none;">
     <div class="section-label"><span>🏪 Marchand</span></div>
@@ -192,6 +206,31 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="gpsTravelModal">
+  <div class="modal gps-travel-modal">
+    <div class="modal-icon">🏃</div>
+    <h2>Faire le voyage</h2>
+    <div class="modal-subtitle">Destination : <strong id="gpsTravelZoneName"></strong></div>
+    <div class="gps-progress-block">
+      <div class="gps-km-display">
+        <span class="gps-km-done" id="gpsTravelDone">0.00</span>
+        <span class="gps-km-sep">/</span>
+        <span class="gps-km-target" id="gpsTravelTarget">0</span>
+        <span class="gps-km-unit">km</span>
+      </div>
+      <div class="gps-bar-track">
+        <div class="gps-bar-fill" id="gpsTravelBar" style="width:0%"></div>
+      </div>
+      <div class="gps-status" id="gpsTravelStatus">📡 Acquisition du signal GPS…</div>
+    </div>
+    <div class="gps-info-box">
+      <p>🔒 Gardez l'application ouverte pendant votre course.</p>
+      <p>📍 Le GPS suit votre position en temps réel.</p>
+    </div>
+    <button class="btn btn-secondary" id="gpsTravelCancel" style="width:100%;margin-top:14px;font-size:12px;border-color:var(--blood-bright);color:var(--blood-bright);">✕ Annuler le voyage</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="equipPickerModal">
   <div class="modal">
     <div class="modal-icon" id="equipPickerIcon">⚔️</div>
@@ -217,10 +256,11 @@
 
 <div class="action-bar" id="actionBar" style="display:none;">
   <div class="action-bar-inner">
-    <button class="btn btn-primary" id="btnStartSession">Commencer</button>
-    <button class="btn btn-secondary" id="btnQuests">📜 Quêtes</button>
-    <button class="btn btn-secondary" id="btnInventory">🎒 Hub</button>
-    <button class="btn btn-secondary" id="btnAdmin">⚙ Admin</button>
+    <button class="btn btn-primary action-bar-start" id="btnStartSession">Commencer</button>
+    <div class="action-bar-secondary-row">
+      <button class="btn btn-secondary action-bar-quest-btn" id="btnQuests">📜 Quêtes <span class="quest-badge" id="questBadge" style="display:none;"></span></button>
+      <button class="btn btn-secondary" id="btnInventory">🎒 Hub</button>
+    </div>
   </div>
 </div>
 
@@ -248,7 +288,8 @@
       <input type="range" class="volume-slider" id="appVolumeSlider" min="0" max="100" step="5" value="100" aria-label="Volume de l'application">
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" id="cancelSettings">Annuler</button><button class="btn btn-gold" id="saveSettings">Enregistrer</button></div>
-    <div style="margin-top:16px;text-align:center;"><button class="btn btn-secondary" id="resetGame" style="font-size:10px;color:var(--blood-bright);border-color:rgba(196,30,58,0.4);width:100%;">⚠ Réinitialiser toute la progression</button></div>
+    <div style="margin-top:12px;"><button class="btn btn-secondary" id="btnAdmin" style="width:100%;font-size:12px;letter-spacing:0.05em;">⚙ Panneau Admin</button></div>
+    <div style="margin-top:8px;text-align:center;"><button class="btn btn-secondary" id="resetGame" style="font-size:10px;color:var(--blood-bright);border-color:rgba(196,30,58,0.4);width:100%;">⚠ Réinitialiser toute la progression</button></div>
   </div>
 </div>
 

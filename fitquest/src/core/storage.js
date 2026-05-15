@@ -13,6 +13,19 @@ export function migrateSave(s) {
   s.player.stats = Object.assign({}, def.player.stats, s.player.stats || {});
   s.player.equipment = Object.assign({}, def.player.equipment, s.player.equipment || {});
   s.player.records = s.player.records || {};
+  s.player.records_vol = s.player.records_vol || {};
+  // Migration table rase : records_bonus passait de dégâts (+5 par record) à compteur de records.
+  // Si les valeurs sont multiples de 5 (ancien format), on convertit. Sinon déjà migré.
+  if (!s.player._records_migrated_v2) {
+    const oldBonus = s.player.records_bonus || {};
+    const newBonus = {};
+    Object.entries(oldBonus).forEach(([id, val]) => {
+      // Ancienne logique : +5 par record → nombre de records = val / 5
+      newBonus[id] = typeof val === 'number' ? Math.round(val / 5) : 0;
+    });
+    s.player.records_bonus = newBonus;
+    s.player._records_migrated_v2 = true;
+  }
   s.player.records_bonus = s.player.records_bonus || {};
   s.player.weapons = s.player.weapons || [];
   s.player.weapons.forEach((w) => {
@@ -38,6 +51,7 @@ export function migrateSave(s) {
   s.player.custom.witch = s.player.custom.witch || [];
   s.player.custom.spells = s.player.custom.spells || [];
   s.player.custom.disabledIds = s.player.custom.disabledIds || [];
+  s.player.custom.overrides = s.player.custom.overrides || {};
   if (!Array.isArray(s.player.knownSpells)) s.player.knownSpells = ['fireball', 'holy_light', 'wind_strike'];
   if (!Array.isArray(s.player.equippedSpells))
     s.player.equippedSpells = [

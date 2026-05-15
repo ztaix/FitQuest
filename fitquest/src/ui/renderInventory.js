@@ -14,6 +14,7 @@ import {
 } from '../data/constants.js';
 import { getEffectiveStats } from '../core/progression.js';
 import { uiCtx } from './renderContext.js';
+import { limits } from '../data/limits.js';
 
 export function renderInventoryView() {
   const state = uiCtx.getState();
@@ -24,13 +25,17 @@ export function renderInventoryView() {
     t.classList.toggle('active', t.dataset.tab === uiCtx.inventoryUi.activeInvTab)
   );
   $('tabInventory').style.display = uiCtx.inventoryUi.activeInvTab === 'inventory' ? 'block' : 'none';
+  $('tabSpells').style.display = uiCtx.inventoryUi.activeInvTab === 'spells' ? 'block' : 'none';
   $('tabBlacksmith').style.display = uiCtx.inventoryUi.activeInvTab === 'blacksmith' ? 'block' : 'none';
   $('tabWitch').style.display = uiCtx.inventoryUi.activeInvTab === 'witch' ? 'block' : 'none';
   $('tabMerchant').style.display = uiCtx.inventoryUi.activeInvTab === 'merchant' ? 'block' : 'none';
+  $('tabLimites').style.display = uiCtx.inventoryUi.activeInvTab === 'limites' ? 'block' : 'none';
   if (uiCtx.inventoryUi.activeInvTab === 'inventory') renderInventoryGrid();
+  else if (uiCtx.inventoryUi.activeInvTab === 'spells') renderSpellEquip();
   else if (uiCtx.inventoryUi.activeInvTab === 'blacksmith') renderBlacksmith();
   else if (uiCtx.inventoryUi.activeInvTab === 'witch') renderWitch();
   else if (uiCtx.inventoryUi.activeInvTab === 'merchant') renderMerchant();
+  else if (uiCtx.inventoryUi.activeInvTab === 'limites') renderLimites();
 }
 
 export function renderInventoryGrid() {
@@ -270,36 +275,89 @@ export function renderWitch() {
   const $ = uiCtx.$;
   const container = $('witchRecipes');
   const recipes = uiCtx.allWitchRecipes();
+
+  // ── Section 1 : Potions ──────────────────────────────────────────────────────
+  let potionHtml = '';
   if (!recipes || recipes.length === 0) {
-    container.innerHTML =
-      '<div class="empty-state"><span class="icon">🧙‍♀️</span>Aucune recette de potion.<br><small>Ajoutez-en dans Admin → 📜 Recettes.</small></div>';
-    return;
-  }
-  container.innerHTML = recipes
-    .map((recipe, i) => {
+    potionHtml = '<div class="empty-state"><span class="icon">🧙‍♀️</span>Aucune recette de potion.</div>';
+  } else {
+    potionHtml = recipes.map((recipe, i) => {
       const color = RARITY_COLORS[recipe.rarity];
       const fb = '🧪';
       const iconHtml = `<img src="${uiCtx.iconUrl(recipe.icon, color)}" alt="" onerror="this.outerHTML='<span class=&quot;emoji&quot;>${fb}</span>'">`;
       let canCraft = state.player.gold >= recipe.gold;
-      const costTags = recipe.ingredients
-        .map((m) => {
-          const data = uiCtx.allIngredients().find((ing) => ing.id === m.id);
-          const have = state.player.ingredients[m.id] || 0;
-          const ok = have >= m.qty;
-          if (!ok) canCraft = false;
-          const ico = FALLBACK_ING[m.id] || FALLBACK_ING.default;
-          return `<span class="cost-tag ${ok ? 'have' : 'miss'}"><span class="ico">${ico}</span> ${data ? data.name : m.id} ${have}/${m.qty}</span>`;
-        })
-        .join('');
-      const goldTag =
-        recipe.gold > 0
-          ? `<span class="cost-tag ${state.player.gold >= recipe.gold ? 'have' : 'miss'}"><span class="ico">💰</span> ${recipe.gold}</span>`
-          : '';
+      const costTags = recipe.ingredients.map((m) => {
+        const data = uiCtx.allIngredients().find((ing) => ing.id === m.id);
+        const have = state.player.ingredients[m.id] || 0;
+        const ok = have >= m.qty;
+        if (!ok) canCraft = false;
+        const ico = FALLBACK_ING[m.id] || FALLBACK_ING.default;
+        return `<span class="cost-tag ${ok ? 'have' : 'miss'}"><span class="ico">${ico}</span> ${data ? data.name : m.id} ${have}/${m.qty}</span>`;
+      }).join('');
+      const goldTag = recipe.gold > 0 ? `<span class="cost-tag ${state.player.gold >= recipe.gold ? 'have' : 'miss'}"><span class="ico">💰</span> ${recipe.gold}</span>` : '';
       return `<div class="recipe-card"><div class="recipe-head"><div class="recipe-icon" style="border:2px solid ${color}">${iconHtml}</div><div class="recipe-info"><div class="recipe-name" style="color:${color}">${recipe.name}</div><div class="recipe-rarity" style="color:var(--text-dim);font-style:italic;">${recipe.desc}</div></div></div><div class="recipe-cost">${costTags}${goldTag}</div><div class="recipe-action"><button data-recipe="${i}" ${canCraft ? '' : 'disabled'}>🧙‍♀️ Préparer</button></div></div>`;
-    })
-    .join('');
+    }).join('');
+  }
+
+  // ── Section 2 : Sorts à apprendre ───────────────────────────────────────────
+  const SPELL_PRICES = {
+    ice_lance: 100, thunder_bolt: 150, poison_cloud: 100,
+    divine_shield: 200, regen_aura: 180, shadow_strike: 150,
+    blizzard: 300, meteor: 800, full_restore: 1000,
+  };
+  const allSpells = uiCtx.allSpells ? uiCtx.allSpells() : [];
+  const knownSpells = state.player.knownSpells || [];
+  const unknownSpells = allSpells.filter((s) => !knownSpells.includes(s.id) && SPELL_PRICES[s.id]);
+  const ELEMENTS_COLOR = { fire: '#ef4444', holy: '#fbbf24', wind: '#34d399', water: '#60a5fa', dark: '#a78bfa' };
+
+  let spellHtml = '';
+  if (unknownSpells.length === 0) {
+    spellHtml = '<div class="empty-state" style="padding:12px 0;"><span class="icon">📚</span>Tu connais déjà tous mes sorts, voyageur.</div>';
+  } else {
+    spellHtml = unknownSpells.map((s) => {
+      const price = SPELL_PRICES[s.id];
+      const canBuy = state.player.gold >= price;
+      const elColor = ELEMENTS_COLOR[s.element] || '#bfdbfe';
+      const onceBadge = s.oncePerCombat ? '<span class="spell-equipped-badge" style="background:rgba(239,68,68,0.2);color:#fca5a5;margin-left:4px;">1×/combat</span>' : '';
+      const effectLabel = s.effect === 'damage_flat' ? `⚔ ${s.value} dégâts` : `💚 ${s.value} PV`;
+      return `<div class="recipe-card">
+        <div class="recipe-head">
+          <div class="recipe-icon" style="border:2px solid ${elColor};font-size:24px;display:flex;align-items:center;justify-content:center;">${s.element === 'fire' ? '🔥' : s.element === 'holy' ? '✨' : s.element === 'wind' ? '💨' : s.element === 'water' ? '❄️' : '🌑'}</div>
+          <div class="recipe-info">
+            <div class="recipe-name" style="color:${elColor};">${s.name}${onceBadge}</div>
+            <div class="recipe-rarity" style="color:var(--text-dim);">${effectLabel} · ${s.manaCost} MP · ${s.desc}</div>
+          </div>
+        </div>
+        <div class="recipe-cost"><span class="cost-tag ${canBuy ? 'have' : 'miss'}"><span class="ico">💰</span> ${price}</span></div>
+        <div class="recipe-action"><button class="witch-learn-spell" data-spell-id="${s.id}" data-price="${price}" ${canBuy ? '' : 'disabled'}>📚 Apprendre</button></div>
+      </div>`;
+    }).join('');
+  }
+
+  container.innerHTML = `
+    <div class="section-label"><span>🧪 Potions</span></div>
+    ${potionHtml}
+    <div class="section-label" style="margin-top:16px;"><span>📚 Sorts à apprendre</span></div>
+    ${spellHtml}
+  `;
+
   container.querySelectorAll('button[data-recipe]').forEach((b) => {
     b.addEventListener('click', () => uiCtx.brewPotion(parseInt(b.dataset.recipe)));
+  });
+  container.querySelectorAll('.witch-learn-spell').forEach((b) => {
+    b.addEventListener('click', () => {
+      const spellId = b.dataset.spellId;
+      const price = parseInt(b.dataset.price, 10);
+      if (state.player.gold < price) { uiCtx.showToast('⚠ Or insuffisant'); return; }
+      if ((state.player.knownSpells || []).includes(spellId)) { uiCtx.showToast('⚠ Sort déjà connu'); return; }
+      state.player.gold -= price;
+      if (!state.player.knownSpells) state.player.knownSpells = [];
+      state.player.knownSpells.push(spellId);
+      uiCtx.saveState();
+      renderWitch();
+      const sp = allSpells.find((s) => s.id === spellId);
+      uiCtx.showToast(`📚 <strong>${sp ? sp.name : spellId}</strong> appris ! Va l'équiper dans l'onglet Sorts.`, 3500);
+    });
   });
 }
 
@@ -403,6 +461,174 @@ export function renderMerchantSell() {
       uiCtx.saveState();
       renderInventoryView();
       uiCtx.showToast(`💰 +${total} or`);
+    });
+  });
+}
+
+export function renderSpellEquip() {
+  const state = uiCtx.getState();
+  const $ = uiCtx.$;
+  const equipped = state.player.equippedSpells || [null, null, null];
+  const allSpells = uiCtx.allSpells();
+
+  // Emplacements equipés
+  const slotsHtml = equipped.map((id, i) => {
+    const s = id ? allSpells.find((sp) => sp.id === id) : null;
+    if (!s) {
+      return `<div class="spell-slot spell-slot--empty" data-slot="${i}">
+        <div class="spell-slot-num">Emplacement ${i + 1}</div>
+        <div class="spell-slot-empty-label">🪄 Vide</div>
+      </div>`;
+    }
+    return `<div class="spell-slot spell-slot--filled" data-slot="${i}">
+      <div class="spell-slot-num">Emplacement ${i + 1}</div>
+      <div class="spell-slot-name">${s.name}</div>
+      <div class="spell-slot-meta">${s.manaCost} MP · ${s.effect === 'damage_flat' ? '⚔ ' + s.value + ' dégâts' : '💚 ' + s.value + ' PV'}</div>
+      <button class="spell-unequip-btn" data-slot="${i}">📤 Retirer</button>
+    </div>`;
+  }).join('');
+
+  // Catalogue filtré aux sorts connus uniquement
+  const knownIds = state.player.knownSpells || [];
+  const catalogHtml = allSpells.filter((s) => knownIds.includes(s.id)).map((s) => {
+    const equippedSlot = equipped.indexOf(s.id);
+    const isEquipped = equippedSlot >= 0;
+    return `<div class="spell-catalog-card ${isEquipped ? 'spell-equipped' : ''}">
+      <div class="spell-catalog-name">${s.name}${isEquipped ? ' <span class="spell-equipped-badge">Équipé</span>' : ''}${s.oncePerCombat ? ' <span class="spell-equipped-badge" style="background:rgba(239,68,68,0.2);color:#fca5a5;">1×/combat</span>' : ''}</div>
+      <div class="spell-catalog-meta">${s.manaCost} MP · ${s.effect === 'damage_flat' ? '⚔ ' + s.value + ' dégâts' : '💚 ' + s.value + ' PV'} · ${s.desc || ''}</div>
+      ${!isEquipped ? `<div class="spell-equip-btns">${equipped.map((e, i) => `<button class="btn-spell-equip" data-spell="${s.id}" data-slot="${i}">${e ? '↔ Slot ' + (i+1) : '+ Slot ' + (i+1)}</button>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty-state"><span class="icon">🪄</span>Aucun sort connu. Apprends-en chez la Sorcière.</div>';
+
+  $('spellSlots').innerHTML = `<div class="spell-slots-grid">${slotsHtml}</div>`;
+  $('spellCatalog').innerHTML = catalogHtml;
+
+  // Retirer un sort équipé
+  $('spellSlots').querySelectorAll('.spell-unequip-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = parseInt(btn.dataset.slot, 10);
+      state.player.equippedSpells[slot] = null;
+      uiCtx.saveState();
+      renderSpellEquip();
+    });
+  });
+
+  // Équiper un sort dans un slot
+  $('spellCatalog').querySelectorAll('.btn-spell-equip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const spellId = btn.dataset.spell;
+      const slot = parseInt(btn.dataset.slot, 10);
+      const prev = state.player.equippedSpells.indexOf(spellId);
+      if (prev >= 0) state.player.equippedSpells[prev] = null;
+      state.player.equippedSpells[slot] = spellId;
+      uiCtx.saveState();
+      renderSpellEquip();
+      const sp = allSpells.find((s) => s.id === spellId);
+      uiCtx.showToast(`✨ ${sp ? sp.name : spellId} équipé en slot ${slot + 1}`);
+    });
+  });
+}
+
+// ─── Onglet Limites ────────────────────────────────────────────────────────────
+
+const LIMIT_TIER_COLOR = { 1: '#3B82F6', 2: '#8B5CF6', 3: '#EF4444' };
+const LIMIT_TIER_LABEL = { 1: 'Tier I — Débutant', 2: 'Tier II — Avancé', 3: 'Tier III — Ultime' };
+const EFFECT_LABEL = {
+  damage_flat: (v) => `⚔ ${v} dégâts`,
+  damage_pct: (v) => `⚔ ${v}% PV boss`,
+  heal_flat: (v) => `💚 +${v} PV`,
+  heal_pct: (v) => `💚 +${v}% PV`,
+  buff_atk: (v) => `⚡ ×2 dégâts (${v} exercices)`,
+};
+
+function unlockLabel(unlock) {
+  if (!unlock) return '';
+  switch (unlock.type) {
+    case 'level': return `Niveau ${unlock.value} requis`;
+    case 'kill_count': return `Vaincre ${unlock.bossId} × ${unlock.kills}`;
+    case 'limit_uses': {
+      const ref = limits.find((l) => l.id === unlock.limitId);
+      return `Utiliser "${ref ? ref.name : unlock.limitId}" × ${unlock.uses}`;
+    }
+    case 'quest': return `Quête : ${unlock.questId}`;
+    default: return '?';
+  }
+}
+
+export function renderLimites() {
+  const state = uiCtx.getState();
+  const container = uiCtx.$('limitesContent');
+  if (!container) return;
+
+  const known = state.player.knownLimits || ['blade_rush'];
+  const equipped = state.player.equippedLimit || 'blade_rush';
+  const usesCount = state.player.limitUsesCount || {};
+  const barPct = Math.round((state.player.limitBar || 0) * 100);
+
+  const barHtml = `<div class="limit-menu-bar-block">
+    <div class="limit-menu-bar-label">Barre de Limite <span style="color:#fbbf24;font-weight:700;">${barPct}%</span></div>
+    <div class="combat-limit-track" style="height:10px;margin:6px 0 0;">
+      <div class="combat-limit-fill ${barPct >= 100 ? 'combat-limit-fill--ready' : ''}" style="width:${barPct}%;"></div>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">Se remplit quand tu prends des dégâts. Persiste entre les séances.</div>
+  </div>`;
+
+  const byTier = { 1: [], 2: [], 3: [] };
+  limits.forEach((l) => { if (byTier[l.tier]) byTier[l.tier].push(l); });
+
+  let html = barHtml;
+
+  for (const tier of [1, 2, 3]) {
+    const color = LIMIT_TIER_COLOR[tier];
+    html += `<div class="section-label" style="margin-top:16px;"><span style="color:${color};">${LIMIT_TIER_LABEL[tier]}</span></div>`;
+
+    for (const limit of byTier[tier]) {
+      const isKnown = known.includes(limit.id);
+      const isEquipped = limit.id === equipped;
+      const uses = usesCount[limit.id] || 0;
+      const effectHtml = EFFECT_LABEL[limit.effect] ? EFFECT_LABEL[limit.effect](limit.value) : limit.effect;
+
+      if (isKnown) {
+        html += `<div class="limit-card ${isEquipped ? 'limit-card--equipped' : ''}" style="--limit-color:${color};">
+          <div class="limit-card-head">
+            <div class="limit-card-name" style="color:${color};">${limit.name}</div>
+            <div class="limit-card-badges">
+              ${isEquipped ? '<span class="limit-badge-equipped">✓ Équipée</span>' : ''}
+              <span class="limit-card-effect">${effectHtml}</span>
+            </div>
+          </div>
+          <div class="limit-card-desc">${limit.desc}</div>
+          <div class="limit-card-footer">
+            <span class="limit-card-uses">${uses} utilisation${uses !== 1 ? 's' : ''}</span>
+            ${!isEquipped ? `<button class="limit-equip-btn" data-limit-id="${limit.id}">Équiper</button>` : ''}
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="limit-card limit-card--locked">
+          <div class="limit-card-head">
+            <div class="limit-card-name limit-card-name--locked">🔒 ${limit.name}</div>
+            <span class="limit-card-effect limit-card-effect--locked">${effectHtml}</span>
+          </div>
+          <div class="limit-card-desc limit-card-desc--locked">${limit.desc}</div>
+          <div class="limit-card-footer">
+            <span class="limit-unlock-cond">🔓 ${unlockLabel(limit.unlock)}</span>
+          </div>
+        </div>`;
+      }
+    }
+  }
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.limit-equip-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const limitId = btn.dataset.limitId;
+      const lim = limits.find((l) => l.id === limitId);
+      if (!lim || !known.includes(limitId)) return;
+      state.player.equippedLimit = limitId;
+      uiCtx.saveState();
+      renderLimites();
+      uiCtx.showToast(`💥 <strong>${lim.name}</strong> équipée !`, 2500);
     });
   });
 }

@@ -156,6 +156,7 @@ export function createAdminForms(deps) {
   function openAdminEdit(type, id) {
     adminEditCtx = { type, id };
     let item = null;
+    const isBuiltin = id && catalog.isBuiltIn(id, type);
     if (id) {
       const list =
         type === 'zones'
@@ -173,10 +174,14 @@ export function createAdminForms(deps) {
                     : catalog.allSpells();
       item = list.find((x) => x.id === id);
     }
-    $('adminEditTitle').textContent =
-      (id ? 'Modifier ' : 'Créer ') +
-      ({ zones: 'zone', exercises: 'exercice', bosses: 'boss', equipment: 'équipement', materials: 'matériau', ingredients: 'ingrédient', spells: 'sort' })[type];
+    const typeLabel = { zones: 'zone', exercises: 'exercice', bosses: 'boss', equipment: 'équipement', materials: 'matériau', ingredients: 'ingrédient', spells: 'sort' }[type];
+    $('adminEditTitle').textContent = (id ? 'Modifier ' : 'Créer ') + typeLabel + (isBuiltin ? ' (base)' : '');
     $('adminEditFields').innerHTML = getFormHtml(type, item);
+    // ID non modifiable pour les built-ins
+    if (isBuiltin) {
+      const fId = $('f_id');
+      if (fId) { fId.readOnly = true; fId.style.opacity = '0.5'; fId.title = 'L\'ID ne peut pas être modifié sur un élément de base'; }
+    }
     openModal('adminEditModal');
   }
 
@@ -291,18 +296,31 @@ export function createAdminForms(deps) {
       showToast('⚠ ID et Nom requis');
       return;
     }
-    const arr = state.player.custom[type];
-    if (id) {
-      const idx = arr.findIndex((x) => x.id === id);
-      if (idx >= 0) arr[idx] = obj;
-      else arr.push(obj);
+
+    const isBuiltin = id && catalog.isBuiltIn(id, type);
+
+    if (isBuiltin) {
+      // Élément de base : on stocke les modifications dans custom.overrides
+      if (!state.player.custom.overrides) state.player.custom.overrides = {};
+      // On ne stocke que les champs modifiables (pas l'ID)
+      const { id: _id, ...fields } = obj;
+      state.player.custom.overrides[id] = fields;
     } else {
-      if (arr.some((x) => x.id === obj.id) || catalog.isBuiltIn(obj.id, type)) {
-        showToast('⚠ ID déjà utilisé');
-        return;
+      // Élément custom : mise à jour ou création dans le tableau correspondant
+      const arr = state.player.custom[type];
+      if (id) {
+        const idx = arr.findIndex((x) => x.id === id);
+        if (idx >= 0) arr[idx] = obj;
+        else arr.push(obj);
+      } else {
+        if (arr.some((x) => x.id === obj.id) || catalog.isBuiltIn(obj.id, type)) {
+          showToast('⚠ ID déjà utilisé');
+          return;
+        }
+        arr.push(obj);
       }
-      arr.push(obj);
     }
+
     saveState();
     closeModal('adminEditModal');
     renderAdmin();

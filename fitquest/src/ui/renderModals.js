@@ -10,7 +10,7 @@ export function showSummaryModal(s) {
       ? `<div class="levelup-banner"><div class="title">🎉 Niveau supérieur !</div><div class="sub">Vous êtes maintenant niveau ${state.player.level}<br><small>+5 Force, +3 Défense, +2 Vitesse, +10 PV, +10 MP</small></div></div>`
       : '';
   const recordsLine = s.records.length
-    ? `<div class="summary-stat"><span class="label">🏆 Records battus</span><span class="value">${s.records.length}</span></div>`
+    ? `<div class="summary-stat"><span class="label">🏆 Records battus</span><span class="value">${s.records.length}</span></div><div style="font-size:11px;color:var(--gold-bright);text-align:center;margin-top:-6px;margin-bottom:6px;">${s.records.map(r => r.statLabel ? `+1 ${r.statLabel}` : '').filter(Boolean).join(' · ')}</div>`
     : '';
   const bossStatus = b
     ? `<div style="text-align:center;padding:12px;background:rgba(196,30,58,0.1);border:1px solid var(--blood);border-radius:8px;margin-bottom:14px;color:var(--blood-bright);font-size:12px;">⚔ ${b.name} reste à terre, blessé (${b.hp}/${b.hp_max} PV). Reprenez la séance plus tard pour l'achever.</div>`

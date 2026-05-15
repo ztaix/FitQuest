@@ -134,9 +134,9 @@ export function applyXp(state, amount) {
     lvl += 1;
     state.meta.total_levelups += 1;
     state.player.stats.force += 5;
-    state.player.stats.defense += 3;
+    state.player.stats.defense += 2;
     state.player.stats.agility += 2;
-    state.player.stats.constitution += 10;
+    state.player.stats.constitution += 8;
     state.player.stats.mana = (state.player.stats.mana || 100) + 10;
     state.player.stats.hp_current = state.player.stats.constitution;
     state.player.stats.mp_current = state.player.stats.mana;
