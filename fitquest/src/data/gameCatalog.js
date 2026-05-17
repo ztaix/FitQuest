@@ -79,6 +79,14 @@ export function createGameCatalog(getState) {
     return allSpells().find((sp) => sp.id === id);
   }
 
+  function allSummons() {
+    return GAME_DATA.summons || [];
+  }
+
+  function getSummonById(id) {
+    return allSummons().find((s) => s.id === id);
+  }
+
   function isBuiltIn(id, type) {
     const map = {
       zones: GAME_DATA.zones,
@@ -104,6 +112,8 @@ export function createGameCatalog(getState) {
     allWitchRecipes,
     allSpells,
     getSpellById,
+    allSummons,
+    getSummonById,
     isBuiltIn,
   };
 }

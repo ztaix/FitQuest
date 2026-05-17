@@ -1,5 +1,9 @@
 import { RARITY_COLORS, FALLBACK_MAT, FALLBACK_ING } from '../data/constants.js';
 import { uiCtx } from './renderContext.js';
+import { openExerciseDetail } from './exerciseDetail.js';
+
+const TYPE_ICON_M = { force: '💪', agility: '⚡', endurance: '🫁' };
+const TYPE_CSS_M = { force: 'type-force', agility: 'type-agility', endurance: 'type-endurance' };
 
 export function showSummaryModal(s) {
   const state = uiCtx.getState();
@@ -15,9 +19,45 @@ export function showSummaryModal(s) {
   const bossStatus = b
     ? `<div style="text-align:center;padding:12px;background:rgba(196,30,58,0.1);border:1px solid var(--blood);border-radius:8px;margin-bottom:14px;color:var(--blood-bright);font-size:12px;">⚔ ${b.name} reste à terre, blessé (${b.hp}/${b.hp_max} PV). Reprenez la séance plus tard pour l'achever.</div>`
     : '';
+  // Liste des exercices complétés pour le récap
+  const sessionExs = (state.session_current?.exercises || []).filter((e) => e.completed);
+  const summaryExListHtml = sessionExs.length
+    ? `<div class="section-label" style="margin-top:14px;margin-bottom:6px;"><span>Exercices réalisés</span></div>
+       <div class="summary-ex-list">
+         ${sessionExs.map((e) => {
+           const allEx = uiCtx.allExercises().find((x) => x.id === e.id);
+           const thumbHtml = allEx?.thumbUrl
+             ? `<img class="ex-thumb ex-thumb--summary" src="${allEx.thumbUrl}" alt="${e.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="ex-thumb-fallback ex-thumb-fallback--summary" style="display:none;">${TYPE_ICON_M[e.type] || '💪'}</div>`
+             : `<div class="ex-thumb-fallback ex-thumb-fallback--summary">${TYPE_ICON_M[e.type] || '💪'}</div>`;
+           const unitLabel = e.unit === 'seconds' ? 'sec' : 'reps';
+           const perf = `${e.sets}×${e.reps} ${unitLabel}${e.hasWeight ? ' @ ' + e.weight + 'kg' : ''}`;
+           return `<div class="summary-ex-row">
+             <div class="ex-thumb-wrap ex-thumb-wrap--summary">${thumbHtml}</div>
+             <div class="summary-ex-info">
+               <div class="summary-ex-name">${e.name}${e.recordBeaten ? ' 🏆' : ''}</div>
+               <div class="summary-ex-perf">${perf} · ${e.damageDealt} dégâts</div>
+             </div>
+             <button class="ex-detail-btn ex-detail-btn--summary" data-ex-detail="${e.id}" aria-label="Détails">ℹ</button>
+           </div>`;
+         }).join('')}
+       </div>`
+    : '';
+
   $('summaryLevelUp').innerHTML = levelUpHtml;
-  $('summaryContent').innerHTML = `${bossStatus}<div class="summary-stat big"><span class="label">⚔ Dégâts infligés</span><span class="value">${s.totalDamage}</span></div><div class="summary-stat"><span class="label">💔 Dégâts reçus</span><span class="value">${s.totalReceived}</span></div><div class="summary-stat"><span class="label">✅ Exercices complétés</span><span class="value">${s.completed} / ${s.total}</span></div><div class="summary-stat"><span class="label">✨ Expérience gagnée</span><span class="value">+${s.xpGained}</span></div>${recordsLine}`;
+  $('summaryContent').innerHTML = `${bossStatus}<div class="summary-stat big"><span class="label">⚔ Dégâts infligés</span><span class="value">${s.totalDamage}</span></div><div class="summary-stat"><span class="label">💔 Dégâts reçus</span><span class="value">${s.totalReceived}</span></div><div class="summary-stat"><span class="label">✅ Exercices complétés</span><span class="value">${s.completed} / ${s.total}</span></div><div class="summary-stat"><span class="label">✨ Expérience gagnée</span><span class="value">+${s.xpGained}</span></div>${recordsLine}${summaryExListHtml}`;
   $('summarySubtitle').textContent = 'Vous reprenez votre souffle après le combat.';
+
+  // Câbler les boutons ℹ dans le récap
+  setTimeout(() => {
+    document.querySelectorAll('#summaryModal [data-ex-detail]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openExerciseDetail(btn.dataset.exDetail);
+      });
+    });
+  }, 0);
+
   uiCtx.openModal('summaryModal');
 }
 

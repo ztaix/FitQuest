@@ -1,8 +1,13 @@
 /**
  * Système de Limite — équivalent des Limit Breaks de FF7.
  * La barre se remplit quand le joueur prend des dégâts.
- * Quand elle est pleine (≥ barRequired), il peut déclencher sa Limite équipée.
+ * Quand elle est pleine (>= barRequired), il peut déclencher sa Limite équipée.
  * La barre repart à 0 après usage. Elle persiste entre les sessions.
+ *
+ * Taux de remplissage par tier (fillRate sur l'objet Limite) :
+ *   T1 fillRate 1.0  -> pleine en ~4-5 coups
+ *   T2 fillRate 0.65 -> pleine en ~6-7 coups
+ *   T3 fillRate 0.45 -> pleine en ~10 coups
  */
 import { limits, getLimitById } from '../data/limits.js';
 
@@ -21,12 +26,19 @@ function ensureLimitFields(state) {
 
 /**
  * Appeler après chaque contre-attaque boss.
- * Taux : +damage / constitution × 1.5 → barre pleine en ~4 coups reçus.
+ * Formule : (damage / constitution) * 0.8 * fillRate de la Limite équipée
+ *   -> T1 (fillRate 1.0) : plein en ~4-5 coups
+ *   -> T2 (fillRate 0.65): plein en ~6-7 coups
+ *   -> T3 (fillRate 0.45): plein en ~10 coups
  */
 export function fillLimitBar(state, damage) {
   ensureLimitFields(state);
   const maxHp = state.player.stats.constitution || 100;
-  const fill = (damage / maxHp) * 1.5;
+  const equippedLimit = getLimitById(state.player.equippedLimit);
+  const fillRate = (equippedLimit && typeof equippedLimit.fillRate === 'number')
+    ? equippedLimit.fillRate
+    : 1.0;
+  const fill = (damage / maxHp) * 0.8 * fillRate;
   state.player.limitBar = Math.min(1.0, state.player.limitBar + fill);
 }
 
@@ -106,7 +118,7 @@ export function applyLimitEffect(state, limit) {
 
 /**
  * Vérifie si de nouvelles Limites doivent être débloquées.
- * À appeler après victoire, montée de niveau, ou usage d'une Limite.
+ * A appeler après victoire, montée de niveau, ou usage d'une Limite.
  * @returns {string[]} noms des Limites nouvellement débloquées
  */
 export function checkLimitUnlocks(state) {

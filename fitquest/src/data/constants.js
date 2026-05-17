@@ -1,4 +1,4 @@
-/** Persistance, rareté, économie et labels UI (aucune logique de jeu). */
+/** Persistance, rarity, economie et labels UI (aucune logique de jeu). */
 
 export const STORAGE_KEY = 'fitquest_save_v1';
 export const VERSION = '3.1.0';
@@ -67,6 +67,7 @@ export const SLOT_LABEL = {
   cape: 'Cape',
   accessory_1: 'Accessoire',
   accessory_2: 'Accessoire',
+  accessory: 'Accessoire',
 };
 
 export const SUGGESTED_REPS = { reps: 10, seconds: 30 };

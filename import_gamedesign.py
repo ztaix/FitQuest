@@ -59,11 +59,14 @@ COLS = {
         "icon","playerMessage","notes",
     ],
     "exercises": [
-        "id","name","icon","category",
-        "muscleGroup","difficulty","isTimed","equipment",
-        "xpPerRep","xpPerSecond","defaultReps","defaultDurationS",
-        "bonusForce","bonusAgility","bonusConstitution","bonusEndurance",
-        "desc","notes",
+        "id","name","icon","category",                           # A-D
+        "muscleGroup","difficulty","isTimed","equipment",        # E-H
+        "xpPerRep","xpPerSecond","defaultReps","defaultDurationS", # I-L
+        "sets","hasWeight","defaultWeight",                      # M-O
+        "bonusForce","bonusAgility","bonusConstitution","bonusEndurance", # P-S
+        "desc",                                                  # T
+        "thumbUrl","gifUrl",                                     # U-V
+        "notes",                                                 # W
     ],
     "weapons": [
         "id","name","rarity","icon","slot","desc",
@@ -338,11 +341,6 @@ def parse_exercises(rows):
         ex_id = val(r, "id")
         if not ex_id:
             continue
-        bonuses = {}
-        for stat in ("Force", "Agility", "Constitution", "Endurance"):
-            v = to_int(val(r, "bonus" + stat), 0)
-            if v:
-                bonuses[stat.lower()] = v
         obj = {
             "id":              ex_id,
             "name":            val(r, "name", ""),
@@ -356,10 +354,17 @@ def parse_exercises(rows):
             "xpPerSecond":     to_int(val(r, "xpPerSecond"), 0),
             "defaultReps":     to_int(val(r, "defaultReps"), 0),
             "defaultDuration": to_int(val(r, "defaultDurationS"), 0),
+            "sets":            to_int(val(r, "sets"), 3),
+            "hasWeight":       to_bool(val(r, "hasWeight", False)),
+            "defaultWeight":   to_float(val(r, "defaultWeight"), 0.0),
+            "bonusForce":      to_int(val(r, "bonusForce"), 0),
+            "bonusAgility":    to_int(val(r, "bonusAgility"), 0),
+            "bonusConstitution": to_int(val(r, "bonusConstitution"), 0),
+            "bonusEndurance":  to_int(val(r, "bonusEndurance"), 0),
             "desc":            val(r, "desc", ""),
+            "thumbUrl":        val(r, "thumbUrl", ""),
+            "gifUrl":          val(r, "gifUrl", ""),
         }
-        if bonuses:
-            obj["statBonuses"] = bonuses
         result.append(obj)
     return result
 

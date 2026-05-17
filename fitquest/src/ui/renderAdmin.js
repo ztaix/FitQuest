@@ -52,6 +52,32 @@ export function renderRecipesAdmin() {
   return `<div class="section-label"><span>&#x2692; Recettes Forgeron</span></div><button class="admin-add-btn" data-action="add-recipe" data-recipe-type="blacksmith">+ Ajouter recette Forgeron</button>${bsHtml}<div class="section-label" style="margin-top:16px;"><span>&#x1F9D9; Recettes Sorciere</span></div><button class="admin-add-btn" data-action="add-recipe" data-recipe-type="witch">+ Ajouter recette Sorciere</button>${wsHtml}`;
 }
 
+export function renderSummonsAdmin() {
+  const state = uiCtx.getState();
+  const allSummons = uiCtx.allSummons ? uiCtx.allSummons() : [];
+  const known = state.player.knownSummons || [];
+  const RARITY_COL = { common: '#9CA3AF', rare: '#3B82F6', epic: '#8B5CF6', legendary: '#F59E0B' };
+  const rows = allSummons.map((s) => {
+    const isKnown = known.includes(s.id);
+    const col = RARITY_COL[s.rarity] || '#9CA3AF';
+    return `<div class="admin-list-item" style="border-left:3px solid ${col};">
+      <div class="alist-icon" style="font-size:22px;">${s.icon}</div>
+      <div class="alist-info">
+        <div class="alist-name" style="color:${col};">${s.name} <small style="color:var(--text-faint);">(${s.rarity})</small>${isKnown ? ' <small style="color:var(--success);">&#x2713; Connu</small>' : ''}</div>
+        <div class="alist-meta">${s.obtainDesc}</div>
+      </div>
+      <div class="alist-actions">
+        ${isKnown
+          ? `<button data-action="revoke-summon" data-summon-id="${s.id}" class="danger" title="Retirer l'invocation">&#x2715;</button>`
+          : `<button data-action="grant-summon" data-summon-id="${s.id}" title="Donner au joueur">&#x2B50; Donner</button>`}
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty-state">Aucune invocation dans le catalogue.</div>';
+  return `<div class="section-label"><span>&#x1F31F; Gestion des Invocations</span></div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Donnez ou retirez des invocations au joueur. Les invocations se d&eacute;bloquent normalement via les drops boss, les qu&ecirc;tes ou la forge.</p>
+    ${rows}`;
+}
+
 export function renderDataAdmin() {
   return `
     <div class="section-label"><span>&#x1F4BE; Sauvegarde</span></div>
@@ -115,6 +141,7 @@ export function renderAdminPanel() {
         '&#x1FA84;'
       );
     else if (tab === 'recipes') c.innerHTML = renderRecipesAdmin();
+    else if (tab === 'summons') c.innerHTML = renderSummonsAdmin();
     else if (tab === 'data') c.innerHTML = renderDataAdmin();
   } catch (e) {
     console.error('Admin render error:', e);

@@ -14,17 +14,26 @@ import { gameEvents } from '../audio/gameEvents.js';
 export function createInventoryActions(deps) {
   const { getState, saveState, catalog, showToast, $, renderInventoryView, renderHero } = deps;
 
-  function equipItem(uid) {
+  function equipItem(uid, targetSlot) {
     const state = getState();
     if (!state?.player) return;
     const idx = state.player.weapons.findIndex((i) => i.uid === uid);
     if (idx === -1) return;
     const item = state.player.weapons[idx];
     if (!item.slot) return;
-    const cur = state.player.equipment[item.slot];
+
+    // Resolution du slot reel pour les accessoires
+    let resolvedSlot = targetSlot || item.slot;
+    if (item.slot === 'accessory' && !targetSlot) {
+      if (!state.player.equipment['accessory_1']) resolvedSlot = 'accessory_1';
+      else if (!state.player.equipment['accessory_2']) resolvedSlot = 'accessory_2';
+      else resolvedSlot = 'accessory_1';
+    }
+
+    const cur = state.player.equipment[resolvedSlot];
     state.player.weapons.splice(idx, 1);
     if (cur) state.player.weapons.push(cur);
-    state.player.equipment[item.slot] = item;
+    state.player.equipment[resolvedSlot] = item;
     saveState();
   }
 
@@ -116,11 +125,11 @@ export function createInventoryActions(deps) {
     const state = getState();
     if (!state?.player) return;
     if (state.player.potions <= 0) {
-      showToast('⚠ Aucune potion');
+      showToast('Aucune potion');
       return;
     }
     if (state.player.stats.hp_current >= state.player.stats.constitution) {
-      showToast('⚠ Vous êtes déjà à plein PV');
+      showToast('Vous etes deja a plein PV');
       return;
     }
     state.player.potions -= 1;
@@ -131,18 +140,18 @@ export function createInventoryActions(deps) {
     gameEvents.emit('potion');
     if ($('viewInventory').classList.contains('active')) renderInventoryView();
     else renderHero();
-    showToast(`🧪 Potion bue : +${heal} PV`);
+    showToast(`Potion bue : +${heal} PV`);
   }
 
   function drinkEtherOOC() {
     const state = getState();
     if (!state?.player) return;
     if (state.player.ethers <= 0) {
-      showToast('⚠ Aucun éther');
+      showToast('Aucun ether');
       return;
     }
     if (state.player.stats.mp_current >= state.player.stats.mana) {
-      showToast('⚠ Mana déjà au max');
+      showToast('Mana deja au max');
       return;
     }
     state.player.ethers -= 1;
@@ -152,7 +161,7 @@ export function createInventoryActions(deps) {
     saveState();
     if ($('viewInventory').classList.contains('active')) renderInventoryView();
     else renderHero();
-    showToast(`💧 Éther bu : +${gain} MP`);
+    showToast(`Ether bu : +${gain} MP`);
   }
 
   function upgradeItem(uid, equippedSlot) {
@@ -180,12 +189,12 @@ export function createInventoryActions(deps) {
     const recipe = catalog.allBlacksmithRecipes()[recipeIdx];
     if (!recipe) return;
     if (state.player.gold < recipe.gold) {
-      showToast('⚠ Or insuffisant');
+      showToast('Or insuffisant');
       return;
     }
     for (const m of recipe.materials) {
       if ((state.player.materials[m.id] || 0) < m.qty) {
-        showToast('⚠ Matériaux insuffisants');
+        showToast('Materiaux insuffisants');
         return;
       }
     }
@@ -199,7 +208,7 @@ export function createInventoryActions(deps) {
     state.player.weapons.push(newItem);
     saveState();
     renderInventoryView();
-    showToast(`⚒ ${weapon.name} forgée !`, 3000);
+    showToast(`${weapon.name} forgee !`, 3000);
   }
 
   function brewPotion(recipeIdx) {
@@ -208,12 +217,12 @@ export function createInventoryActions(deps) {
     const recipe = catalog.allWitchRecipes()[recipeIdx];
     if (!recipe) return;
     if (state.player.gold < recipe.gold) {
-      showToast('⚠ Or insuffisant');
+      showToast('Or insuffisant');
       return;
     }
     for (const m of recipe.ingredients) {
       if ((state.player.ingredients[m.id] || 0) < m.qty) {
-        showToast('⚠ Ingrédients insuffisants');
+        showToast('Ingredients insuffisants');
         return;
       }
     }
@@ -225,7 +234,7 @@ export function createInventoryActions(deps) {
     if (recipe.effect === 'heal') state.player.potions += 1;
     saveState();
     renderInventoryView();
-    showToast(`🧙‍♀️ ${recipe.name} préparée !`, 3000);
+    showToast(`${recipe.name} preparee !`, 3000);
   }
 
   return {

@@ -18,7 +18,7 @@
     <button class="settings-btn" id="settingsBtn" title="Paramètres">⚙</button>
   </header>
 
-  <div id="zoneBanner" class="zone-banner"></div>
+  <div id="zoneBanner" class="zone-banner" style="position:relative;height:190px;overflow:hidden;border-radius:14px;"></div>
 
   <div class="card hero-card">
     <div class="hero-avatar">🛡️</div>
@@ -32,15 +32,22 @@
       <div class="bar-label"><span class="label-name">💧 Mana</span><span id="mpText">100 / 100</span></div>
       <div class="bar"><div class="bar-fill mp" id="mpBar" style="width:100%"></div></div>
     </div>
-    <div class="bar-container" style="margin-bottom:0;">
+    <div class="bar-container">
       <div class="bar-label"><span class="label-name">✨ Expérience</span><span id="xpText">0 / 400</span></div>
       <div class="bar"><div class="bar-fill xp" id="xpBar" style="width:0%"></div></div>
+    </div>
+    <div class="dash-limit-section" id="dashLimitSection">
+      <div class="dash-limit-row">
+        <span class="dash-limit-label">💥 Limite</span>
+        <div class="dash-limit-track"><div class="dash-limit-fill" id="dashLimitFill" style="width:0%"></div></div>
+        <span class="dash-limit-pct" id="dashLimitPct">0%</span>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
       <button class="btn btn-secondary" id="btnDrinkPotionDash" style="font-size:11px;padding:10px;border-color:var(--success);color:var(--success);">🧪 Potion (<span id="dashPotionCount">0</span>)</button>
       <button class="btn btn-secondary" id="btnDrinkEtherDash" style="font-size:11px;padding:10px;border-color:#3B82F6;color:#3B82F6;">💧 Éther (<span id="dashEtherCount">0</span>)</button>
     </div>
-    <div class="steps-dash-row">
+    <div class="steps-dash-row" style="display:none;">
       <span>🚶 <strong id="dashStepBalance">0</strong> pas</span>
       <button type="button" class="btn btn-secondary" id="btnSyncSteps">Sync pas</button>
     </div>
@@ -114,6 +121,7 @@
     <button class="tab" data-tab="witch">🧙‍♀️ Sorcière</button>
     <button class="tab" data-tab="merchant">🏪 Marchand</button>
     <button class="tab" data-tab="limites">💥 Limites</button>
+    <button class="tab" data-tab="summons">🌟 Invocations</button>
   </div>
   <div id="tabInventory">
     <div class="filter-row" id="invTypeFilters">
@@ -144,6 +152,13 @@
     <div class="section-label"><span>💥 Limites</span></div>
     <div style="font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;padding:10px;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px;">« Laisse la douleur se transformer en puissance. Quand la barre est pleine — déchaîne-toi. »</div>
     <div id="limitesContent"></div>
+  </div>
+  <div id="tabSummons" style="display:none;">
+    <div class="section-label"><span>🌟 Invocations</span><span class="section-label-meta">3 emplacements max</span></div>
+    <div style="font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;padding:10px;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px;">« Chaque coup reçu au combat remplit votre jauge. Quand elle est pleine, déchaînez une invocation. »</div>
+    <div id="summonSlots"></div>
+    <div class="section-label" style="margin-top:16px;"><span>📖 Invocations connues</span></div>
+    <div id="summonCatalog"></div>
   </div>
   <div id="tabMerchant" style="display:none;">
     <div class="section-label"><span>🏪 Marchand</span></div>
@@ -179,6 +194,7 @@
     <button class="admin-tab" data-admintab="ingredients">🌿 Ingrédients</button>
     <button class="admin-tab" data-admintab="spells">🪄 Sorts</button>
     <button class="admin-tab" data-admintab="recipes">📜 Recettes</button>
+    <button class="admin-tab" data-admintab="summons">🌟 Invocations</button>
     <button class="admin-tab" data-admintab="data">💾 Données</button>
   </div>
   <div id="adminContent"></div>
@@ -307,6 +323,7 @@
     <div class="modal-icon" id="exModalIcon">💪</div>
     <h2 id="exModalName">Pompes</h2>
     <div id="exModalMatchup" style="text-align:center;margin-bottom:8px;"></div>
+    <div id="exModalRecord" style="text-align:center;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);display:none;"></div>
     <div class="exercise-desc" id="exModalDesc">Description...</div>
     <div class="input-row">
       <div class="input-group"><label>Séries</label><input type="number" class="input" id="exSets" min="1" max="20" value="3"></div>
@@ -331,6 +348,44 @@
     <div id="victoryLevelUp"></div>
     <div id="victoryContent"></div>
     <div style="margin-top:16px;"><button class="btn btn-gold" id="btnVictoryReturn" style="width:100%;">Retour au repaire</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="defeatModal">
+  <div class="modal defeat-modal">
+    <div class="modal-icon">💀</div>
+    <h2>DÉFAITE</h2>
+    <div class="modal-subtitle">Vos forces vous abandonnent...</div>
+    <div id="defeatContent" style="text-align:center;padding:14px;background:rgba(0,0,0,0.3);border-radius:8px;font-size:13px;color:var(--text-dim);line-height:1.6;"></div>
+    <div style="margin-top:16px;"><button class="btn btn-gold" id="btnDefeatReturn" style="width:100%;">Reprendre des forces</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="summaryModal">
+  <div class="modal">
+    <div class="modal-icon">🎯</div>
+    <h2>Séance terminée</h2>
+    <div class="modal-subtitle" id="summarySubtitle">Vous reprenez votre souffle...</div>
+    <div id="summaryLevelUp"></div>
+    <div id="summaryContent"></div>
+    <div style="margin-top:16px;"><button class="btn btn-gold" id="btnReturnDashboard" style="width:100%;">Retour au repaire</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="exerciseDetailModal">
+  <div class="modal ex-detail-modal">
+    <button class="ex-detail-close" id="exDetailClose" aria-label="Fermer">✕</button>
+    <div class="ex-detail-media" id="exDetailMedia">
+      <div class="ex-detail-placeholder" id="exDetailPlaceholder">
+        <span class="ex-detail-placeholder-icon" id="exDetailPlaceholderIcon">💪</span>
+      </div>
+      <img class="ex-detail-gif" id="exDetailGif" src="" alt="" style="display:none;">
+    </div>
+    <div class="ex-detail-body">
+      <h2 class="ex-detail-name" id="exDetailName">Exercice</h2>
+      <div class="ex-detail-badges" id="exDetailBadges"></div>
+      <p class="ex-detail-desc" id="exDetailDesc"></p>
+    </div>
   </div>
 </div>
 
