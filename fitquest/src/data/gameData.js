@@ -8,6 +8,7 @@ import { exercises } from './exercises.js';
 import { recipes_blacksmith, recipes_witch } from './recipes.js';
 import { spells } from './spells.js';
 import { zones } from './zones.js';
+import { summons } from './summons.js';
 
 export const GAME_DATA = {
   weapons,
@@ -19,4 +20,5 @@ export const GAME_DATA = {
   recipes_witch,
   spells,
   zones,
+  summons,
 };

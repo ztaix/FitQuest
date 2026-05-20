@@ -46,6 +46,9 @@ export function defaultState() {
       knownLimits: ['blade_rush'],
       equippedLimit: 'blade_rush',
       limitUsesCount: {},
+      // ── Invocations ──────────────────────────────────────────────────
+      knownSummons: [],
+      equippedSummons: [null, null, null],
       bossKillCounts: {},
       custom: {
         zones: [],

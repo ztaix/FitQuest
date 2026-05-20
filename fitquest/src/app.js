@@ -151,6 +151,7 @@ const{
   confirmExerciseSubmission,
   castSpell,
   activateLimit,
+  activateSummon,
   regenerateExerciseSet,
   finishSession,
 }=session;
@@ -357,6 +358,8 @@ $('equipPickerClose').addEventListener('click',()=>closeModal('equipPickerModal'
 $('equipPickerModal').addEventListener('click',(e)=>{if(e.target.id==='equipPickerModal')closeModal('equipPickerModal');});
 $('enemyStatsClose').addEventListener('click',()=>closeModal('enemyStatsModal'));
 $('enemyStatsModal').addEventListener('click',(e)=>{if(e.target.id==='enemyStatsModal')closeModal('enemyStatsModal');});
+$('exDetailClose').addEventListener('click',()=>closeModal('exerciseDetailModal'));
+$('exerciseDetailModal').addEventListener('click',(e)=>{if(e.target.id==='exerciseDetailModal')closeModal('exerciseDetailModal');});
 
 bindUi({
   getState: () => state,
@@ -397,8 +400,11 @@ bindUi({
   forgeWeapon,
   brewPotion,
   getSpellById:catalog.getSpellById,
+  allSummons:catalog.allSummons,
+  getSummonById:catalog.getSummonById,
   castSpell,
   activateLimit,
+  activateSummon,
   showFloatingDmg,
   computeExerciseDamage: world.computeExerciseDamage,
   setCurrentExerciseId: (id) => {

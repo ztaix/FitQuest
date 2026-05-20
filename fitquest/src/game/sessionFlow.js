@@ -85,6 +85,8 @@ export function createSessionFlow(deps) {
       xpEarned: 0,
       suggestedSets: tier.sets,
       suggestedReps: tier.reps,
+      summonGauge: 0,          // 0.0 → 1.0
+      summonsUsedThisFight: [],
       suggestedSec: tier.seconds,
     };
     saveState();
@@ -160,11 +162,12 @@ export function createSessionFlow(deps) {
         state.player.materials[d.id] = (state.player.materials[d.id] || 0) + d.qty;
       } else if (d.type === 'ingredient') {
         state.player.ingredients[d.id] = (state.player.ingredients[d.id] || 0) + d.qty;
-      } else if (d.type === 'weapon') {
-        // Instancier l'arme depuis le catalogue
+      } else if (d.type === 'weapon' || d.type === 'accessory') {
+        // Instancier l'arme/accessoire depuis le catalogue
         const weaponData = catalog.allEquipment().find((w) => w.id === d.id);
         if (weaponData) {
-          state.player.weapons.push({ ...weaponData, combLevel: 0 });
+          const uid = 'i_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+          state.player.weapons.push({ ...weaponData, combLevel: 0, uid });
         }
       }
     });
@@ -356,6 +359,17 @@ export function createSessionFlow(deps) {
     setTimeout(() => {
       const st = getState();
       const ctl = getBossSpriteCtl && getBossSpriteCtl();
+      // ── Étourdissement (Ramuh) : le boss ne contre-attaque pas ──────────
+      if ((st.session_current.bossStunnedTurns || 0) > 0) {
+        st.session_current.bossStunnedTurns -= 1;
+        saveState();
+        showToast(`⚡ ${st.boss.current.name} est étourdi et ne peut pas attaquer !`, 2500);
+        if (st.session_current.exercises.every((e) => e.completed) && st.boss.current && st.boss.current.hp > 0) {
+          regenerateExerciseSet();
+        }
+        renderSessionView();
+        return;
+      }
       if (ctl && typeof ctl.play === 'function') ctl.play('attack');
       setTimeout(() => {
         const st2 = getState();
@@ -364,11 +378,22 @@ export function createSessionFlow(deps) {
         }
       }, BOSS_SPRITE_POST_ATTACK_MS);
       gameEvents.emit('boss_attack');
-      const dmg = computeBossCounterAttack(st.boss.current);
+      let dmg = computeBossCounterAttack(st.boss.current);
+      // ── Affaiblissement (Shiva) : dégâts réduits ────────────────────────
+      if ((st.session_current.bossWeakenTurns || 0) > 0) {
+        const reduction = st.session_current.bossWeakenReduction || 0.5;
+        dmg = Math.round(dmg * (1 - reduction));
+        st.session_current.bossWeakenTurns -= 1;
+      }
       st.player.stats.hp_current = Math.max(0, st.player.stats.hp_current - dmg);
       st.session_current.totalReceived += dmg;
       // Remplir la barre de Limite à chaque coup reçu
       fillLimitBar(st, dmg);
+      // Remplir la jauge d'invocation (+25% par coup reçu)
+      st.session_current.summonGauge = Math.min(1.0, (st.session_current.summonGauge || 0) + 0.25);
+      if (st.session_current.summonGauge >= 1.0) {
+        showToast('🌟 Jauge d\'invocation PLEINE ! Déchaînez votre invocation !', 3000);
+      }
       saveState();
       shakeScreen();
       showFloatingDmg(`-${dmg}`, 'boss-dmg', 'playerHpBar');
@@ -564,6 +589,123 @@ export function createSessionFlow(deps) {
     showSummaryModal(summary);
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // INVOCATIONS
+  // ════════════════════════════════════════════════════════════════════════
+  function activateSummon(summonId) {
+    const state = getState();
+    if (!state.session_current || !state.boss.current) {
+      showToast('⚠ Pas de combat en cours');
+      return;
+    }
+    const sc = state.session_current;
+    if ((sc.summonGauge || 0) < 1.0) {
+      showToast('⚠ La jauge d\'invocation n\'est pas encore pleine (4 coups reçus nécessaires)');
+      return;
+    }
+    if (!state.player.equippedSummons || !state.player.equippedSummons.includes(summonId)) {
+      showToast('⚠ Cette invocation n\'est pas équipée');
+      return;
+    }
+    if (!sc.summonsUsedThisFight) sc.summonsUsedThisFight = [];
+    if (sc.summonsUsedThisFight.includes(summonId)) {
+      showToast('⚠ Cette invocation a déjà été utilisée ce combat');
+      return;
+    }
+    const summon = catalog.getSummonById(summonId);
+    if (!summon) { showToast('⚠ Invocation introuvable'); return; }
+
+    // Consommer la jauge
+    sc.summonGauge = 0;
+    sc.summonsUsedThisFight.push(summonId);
+
+    const ef = summon.effect;
+    let dmgTotal = 0;
+    let resultMsg = '';
+
+    if (ef.type === 'damage_force') {
+      const force = state.player.stats.force || 10;
+      dmgTotal = Math.round(ef.baseDamage + force * (ef.statScale?.mult || 1.5));
+      resultMsg = `${summon.icon} <strong>${summon.name}</strong> inflige <strong>${dmgTotal} dégâts</strong> !`;
+    } else if (ef.type === 'damage_flat') {
+      let dmg = ef.baseDamage;
+      if (summon.element && state.boss.current.element) {
+        dmg = Math.round(dmg * elementMultiplier(summon.element, state.boss.current.element));
+      }
+      dmgTotal = dmg;
+      resultMsg = `${summon.icon} <strong>${summon.name}</strong> inflige <strong>${dmgTotal} dégâts</strong> !`;
+    } else if (ef.type === 'instakill_or_damage') {
+      const hpRatio = state.boss.current.hp / state.boss.current.hp_max;
+      if (hpRatio < ef.instakillThreshold) {
+        dmgTotal = state.boss.current.hp;
+        resultMsg = `${summon.icon} <strong>ODINFELL !</strong> ${state.boss.current.name} est tranché d'un seul coup !`;
+      } else {
+        dmgTotal = ef.baseDamage;
+        resultMsg = `${summon.icon} <strong>${summon.name}</strong> inflige <strong>${dmgTotal} dégâts</strong> (boss > 30% PV, exécution impossible)`;
+      }
+    } else if (ef.type === 'multihit') {
+      const hits = ef.hits || 1;
+      dmgTotal = hits * ef.baseDamagePerHit;
+      resultMsg = `${summon.icon} <strong>${summon.name}</strong> — ${hits} frappes × ${ef.baseDamagePerHit} = <strong>${dmgTotal} dégâts</strong> !`;
+    }
+
+    // Appliquer dégâts au boss
+    if (dmgTotal > 0) {
+      state.boss.current.hp = Math.max(0, state.boss.current.hp - dmgTotal);
+      sc.totalDamage += dmgTotal;
+      flashBossPortrait(true);
+      showFloatingDmg(`-${dmgTotal}`, 'player-crit');
+    }
+
+    // Effets secondaires
+    if (summon.sideEffect) {
+      const se = summon.sideEffect;
+      if (se.type === 'boss_weaken') {
+        sc.bossWeakenTurns = (sc.bossWeakenTurns || 0) + se.turns;
+        sc.bossWeakenReduction = se.reduction;
+        resultMsg += `<br>❄️ ${se.label}`;
+      } else if (se.type === 'boss_stun') {
+        sc.bossStunnedTurns = (sc.bossStunnedTurns || 0) + se.turns;
+        resultMsg += `<br>⚡ ${se.label}`;
+      } else if (se.type === 'heal_pct') {
+        const healAmt = Math.round(state.player.stats.constitution * se.value);
+        state.player.stats.hp_current = Math.min(state.player.stats.constitution, state.player.stats.hp_current + healAmt);
+        showFloatingDmg(`+${healAmt}`, 'heal', 'playerHpBar');
+        resultMsg += `<br>💧 ${se.label}`;
+      } else if (se.type === 'restore_mp') {
+        state.player.stats.mp_current = Math.min(state.player.stats.mana, (state.player.stats.mp_current || 0) + se.value);
+        resultMsg += `<br>✨ ${se.label}`;
+      } else if (se.type === 'conditional_heal') {
+        const hpRatio = state.player.stats.hp_current / state.player.stats.constitution;
+        if (hpRatio < se.hpThreshold) {
+          const prevHp = state.player.stats.hp_current;
+          const newHp = Math.round(state.player.stats.constitution * se.healTo);
+          state.player.stats.hp_current = newHp;
+          showFloatingDmg(`+${newHp - prevHp}`, 'heal', 'playerHpBar');
+          resultMsg += `<br>🦅 ${se.label}`;
+        } else {
+          resultMsg += `<br>🦅 Phénix : vos PV > 40%, pas de soin nécessaire.`;
+        }
+      }
+    }
+
+    showToast(resultMsg, 5000);
+    gameEvents.emit('combat_hit', { crit: true });
+    // Mise à jour HP bars
+    const hpPct = (state.boss.current.hp / state.boss.current.hp_max) * 100;
+    if ($('bossHpBar')) $('bossHpBar').style.width = `${hpPct}%`;
+    if ($('bossHpText')) $('bossHpText').textContent = `❤️ ${state.boss.current.hp} / ${state.boss.current.hp_max}`;
+    const phPct = (state.player.stats.hp_current / state.player.stats.constitution) * 100;
+    if ($('playerHpBar')) $('playerHpBar').style.width = `${phPct}%`;
+    if ($('playerHpText')) $('playerHpText').textContent = `${state.player.stats.hp_current} / ${state.player.stats.constitution}`;
+    saveState();
+    if (state.boss.current && state.boss.current.hp <= 0) {
+      setTimeout(() => victory(), 800);
+      return;
+    }
+    renderSessionView();
+  }
+
   return {
     startRegionalBossEncounter,
     startSession,
@@ -572,6 +714,7 @@ export function createSessionFlow(deps) {
     confirmExerciseSubmission,
     castSpell,
     activateLimit,
+    activateSummon,
     regenerateExerciseSet,
     finishSession,
     victory,

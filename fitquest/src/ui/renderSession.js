@@ -24,6 +24,7 @@ import { mountBossSpriteDebugStrip } from './bossSpriteDebug.js';
 import { bossLevelBadgeUrl } from './gameIcons.js';
 import { uiCtx } from './renderContext.js';
 import { getEquippedLimit } from '../core/limitBreak.js';
+import { openExerciseDetail } from './exerciseDetail.js';
 
 /** Mettre à true pour réafficher « Modifier les exercices » et « Réduire la séance » (pré-séance). */
 const SHOW_PRESESSION_TWEAK_ACTIONS = false;
@@ -327,8 +328,13 @@ export function renderPreSessionView() {
       } else {
         recordHtml = `<span class="presession-personal-record presession-personal-record--none">🏆 Pas encore de record</span>`;
       }
+      const presessionThumb = ex.thumbUrl
+        ? `<img class="ex-thumb" src="${ex.thumbUrl}" alt="${ex.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+           <div class="ex-thumb-fallback" style="display:none;">${TYPE_ICON[ex.type]}</div>`
+        : `<div class="ex-thumb-fallback">${TYPE_ICON[ex.type]}</div>`;
       return `<div class="exercise-card presession-exercise ${typeCls}" style="--presession-dmg-fade-start:${dmgFadeStart}%;--presession-dmg-pct:${dmgPct}%;">
-  <div class="exercise-info">
+  <div class="ex-thumb-wrap ex-thumb-wrap--presession">${presessionThumb}</div>
+  <div class="exercise-info" style="flex:1;min-width:0;">
     <div class="exercise-name presession-exercise-title"><span class="presession-exercise-name-text">${ex.name}</span><span class="presession-exercise-volume">${volLine}</span></div>
     <div class="presession-exercise-badges-row">
       <div class="presession-type-dmg-bar ${typeCls}">
@@ -338,6 +344,7 @@ export function renderPreSessionView() {
     </div>
     ${recordHtml}
   </div>
+  <button class="ex-detail-btn" data-ex-detail="${ex.id}" aria-label="Détails de l'exercice" title="Voir le détail">ℹ</button>
 </div>`;
     })
     .join('');
@@ -367,6 +374,14 @@ export function renderPreSessionView() {
 </div>`;
 
   $('preSessionContent').innerHTML = `${introBossHtml}<div class="section-label presession-programme-label"><span>Programme proposé</span><span class="section-label-meta">${proposed.length} exercices</span></div>${exHtml}${footerHtml}`;
+
+  // Délégation des clics sur les boutons ℹ détail exercice (pré-session)
+  $('preSessionContent').querySelectorAll('[data-ex-detail]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openExerciseDetail(btn.dataset.exDetail);
+    });
+  });
 
   const launch = $('btnLaunchSession');
   if (launch) {
@@ -437,36 +452,74 @@ export function renderSessionView() {
     .join('');
   const itemPotionHtml = `<button class="action-btn potion" id="actPotion" ${state.player.potions <= 0 ? 'disabled' : ''}><div class="ico">🧪</div>Potion<div class="sub">+50 PV · ${state.player.potions}</div></button>`;
   const enemyTypeLine = `<span class="type-tag ${TYPE_CSS[b.type]} cycle-trigger specialty-cycle-trigger" data-cycle-kind="specialty" title="Voir le cadran des spécialités">${TYPE_ICON[b.type]} ${TYPE_LABEL[b.type]}</span>${b.element ? elementTag(b.element, { interactive: true }) : ''}`;
-  const combatPlayerStatusHtml = `<div class="combat-status-panel combat-status-player"><div class="combat-status-title"><span>${state.player.name || 'Champion'}</span><span>Niv. ${state.player.level ?? 1}</span></div><div class="combat-stat-line"><span>PV</span><strong id="playerHpText">${state.player.stats.hp_current} / ${state.player.stats.constitution}</strong></div><div class="bar"><div class="bar-fill hp" id="playerHpBar" style="width:${playerHpPct}%"></div></div><div class="combat-stat-line"><span>MP</span><strong id="playerMpText">${mp} / ${mpMax}</strong></div><div class="bar"><div class="bar-fill mp" id="playerMpBar" style="width:${mpPct}%"></div></div></div>`;
   const limitSubLabel = limitReady
     ? 'LIMITE !'
     : limitBuffTurns > 0
       ? `💥 ×2 (${limitBuffTurns} ex.)`
       : `${limitPct}%`;
-  const combatCommandColumnHtml = `<div class="combat-command-panel combat-command-panel--side"><div class="combat-limit-section"><div class="combat-limit-bar-row" title="${limitName} — ${limitPct}%"><span class="combat-limit-label">LIMITE</span><div class="combat-limit-track"><div class="combat-limit-fill ${limitReady ? 'combat-limit-fill--ready' : ''}" id="limitBarFill" style="width:${limitPct}%"></div></div></div><button type="button" class="action-btn skill combat-command-head combat-command-skill-full ${limitReady ? 'active limit-ready' : limitBuffTurns > 0 ? 'active limit-buff-active' : ''}" id="actLimit" ${!limitReady ? 'disabled' : ''} title="${limitReady ? limitName + ' — Déclencher !' : limitBuffTurns > 0 ? limitName + ' actif' : limitName + ' — Barre à ' + limitPct + '%'}"><span class="action-btn-inline"><span class="ico">💥</span><span class="action-btn-text">${limitName}</span></span><span class="action-btn-sub">${limitSubLabel}</span></button></div><div class="combat-special-actions" role="group" aria-label="Actions spéciales"><button type="button" class="action-btn combat-drawer-toggle combat-special-toggle" id="toggleSpellDrawer" aria-expanded="false" aria-controls="combatSpellDrawer"><span class="ico">✨</span><span class="action-btn-text">Sorts</span></button><button type="button" class="action-btn combat-drawer-toggle combat-drawer-toggle--items combat-special-toggle" id="toggleItemDrawer" aria-expanded="false" aria-controls="combatItemDrawer"><span class="ico">🎒</span><span class="action-btn-text">Objets</span></button></div></div>`;
-  const combatDrawersHtml = `<div class="combat-hud-drawers"><div class="combat-drawer combat-spell-drawer" id="combatSpellDrawer" role="region" aria-label="Sorts équipés"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${spellButtons}</div></div></div><div class="combat-drawer combat-item-drawer" id="combatItemDrawer" role="region" aria-label="Objets"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${itemPotionHtml}</div></div></div></div>`;
+  // Limite sous les barres PV/MP dans le panneau joueur
+  const limitSectionHtml = `<div class="combat-limit-section" style="margin-top:6px;"><div class="combat-limit-bar-row" title="${limitName} — ${limitPct}%"><span class="combat-limit-label">LIMITE</span><div class="combat-limit-track"><div class="combat-limit-fill ${limitReady ? 'combat-limit-fill--ready' : ''}" id="limitBarFill" style="width:${limitPct}%"></div></div><span style="font-size:9px;color:#fde68a;font-weight:700;flex-shrink:0;min-width:28px;text-align:right;">${limitSubLabel}</span></div><button type="button" class="action-btn skill ${limitReady ? 'active limit-ready' : limitBuffTurns > 0 ? 'active limit-buff-active' : ''}" id="actLimit" ${!limitReady ? 'disabled' : ''} style="width:100%;margin-top:4px;" title="${limitReady ? limitName + ' — Déclencher !' : limitName + ' — Barre à ' + limitPct + '%'}"><span class="ico">💥</span> ${limitName}</button></div>`;
+  // ── Invocations ──────────────────────────────────────────────────────
+  const sc = state.session_current;
+  const summonGauge = sc.summonGauge || 0;
+  const summonGaugePct = Math.round(summonGauge * 100);
+  const summonReady = summonGauge >= 1.0;
+  const equippedSummonIds = state.player.equippedSummons || [null, null, null];
+  const hasEquippedSummons = equippedSummonIds.some((id) => !!id);
+  const summonSectionHtml = hasEquippedSummons
+    ? `<div class="combat-limit-section" style="margin-top:6px;"><div class="combat-limit-bar-row" title="Jauge Invocation — ${summonGaugePct}%"><span class="combat-limit-label" style="color:#c4b5fd;">INVOC.</span><div class="combat-limit-track"><div class="combat-limit-fill ${summonReady ? 'combat-limit-fill--ready' : ''}" id="summonGaugeBar" style="width:${summonGaugePct}%;background:${summonReady ? 'linear-gradient(90deg,#7c3aed,#f59e0b)' : 'linear-gradient(90deg,#4c1d95,#6d28d9)'};"></div></div><span style="font-size:9px;color:#c4b5fd;font-weight:700;flex-shrink:0;min-width:28px;text-align:right;">${summonGaugePct}%</span></div></div>`
+    : '';
+  const summonButtons = equippedSummonIds.map((id, i) => {
+    if (!id) return `<button class="action-btn" disabled style="opacity:0.3;"><div class="ico">·</div>Vide<div class="sub">Slot ${i + 1}</div></button>`;
+    const s = uiCtx.getSummonById ? uiCtx.getSummonById(id) : null;
+    if (!s) return '';
+    const used = (sc.summonsUsedThisFight || []).includes(id);
+    const disabled = !summonReady || used;
+    const col = { rare: '#3B82F6', epic: '#8B5CF6', legendary: '#F59E0B' }[s.rarity] || '#9CA3AF';
+    const sub = used ? '1×/combat' : !summonReady ? `${summonGaugePct}% / 100%` : '🌟 Prête !';
+    return `<button class="action-btn spell" data-summon-id="${id}" ${disabled ? 'disabled' : ''} style="border-color:${col};"><div class="ico">${s.icon}</div>${s.name}<div class="sub">${sub}</div></button>`;
+  }).join('');
+  const combatPlayerStatusHtml = `<div class="combat-status-panel combat-status-player"><div class="combat-status-title"><span>${state.player.name || 'Champion'}</span><span>Niv. ${state.player.level ?? 1}</span></div><div class="combat-stat-line"><span>PV</span><strong id="playerHpText">${state.player.stats.hp_current} / ${state.player.stats.constitution}</strong></div><div class="bar"><div class="bar-fill hp" id="playerHpBar" style="width:${playerHpPct}%"></div></div><div class="combat-stat-line"><span>MP</span><strong id="playerMpText">${mp} / ${mpMax}</strong></div><div class="bar"><div class="bar-fill mp" id="playerMpBar" style="width:${mpPct}%"></div></div>${limitSectionHtml}${summonSectionHtml}</div>`;
+  // Panneau de droite : Sorts + Objets + Invocations
+  const summonToggleBtn = hasEquippedSummons
+    ? `<button type="button" class="action-btn combat-drawer-toggle combat-special-toggle" id="toggleSummonDrawer" aria-expanded="false" aria-controls="combatSummonDrawer" style="border-color:#7c3aed;"><span class="ico">🌟</span><span class="action-btn-text">Invoc.</span></button>`
+    : '';
+  const combatCommandColumnHtml = `<div class="combat-command-panel combat-command-panel--side"><div class="combat-special-actions" role="group" aria-label="Actions spéciales" style="flex-direction:column;gap:8px;"><button type="button" class="action-btn combat-drawer-toggle combat-special-toggle" id="toggleSpellDrawer" aria-expanded="false" aria-controls="combatSpellDrawer"><span class="ico">✨</span><span class="action-btn-text">Sorts</span></button><button type="button" class="action-btn combat-drawer-toggle combat-drawer-toggle--items combat-special-toggle" id="toggleItemDrawer" aria-expanded="false" aria-controls="combatItemDrawer"><span class="ico">🎒</span><span class="action-btn-text">Objets</span></button>${summonToggleBtn}</div></div>`;
+  const combatSummonDrawerHtml = hasEquippedSummons
+    ? `<div class="combat-drawer combat-spell-drawer" id="combatSummonDrawer" role="region" aria-label="Invocations"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${summonButtons}</div></div></div>`
+    : '';
+  const combatDrawersHtml = `<div class="combat-hud-drawers"><div class="combat-drawer combat-spell-drawer" id="combatSpellDrawer" role="region" aria-label="Sorts équipés"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${spellButtons}</div></div></div><div class="combat-drawer combat-item-drawer" id="combatItemDrawer" role="region" aria-label="Objets"><div class="combat-drawer-inner"><div class="combat-drawer-grid">${itemPotionHtml}</div></div></div>${combatSummonDrawerHtml}</div>`;
   const combatHudHtml = `<div class="combat-ff7-hud"><div class="combat-hud-player-row">${combatPlayerStatusHtml}${combatCommandColumnHtml}</div>${combatDrawersHtml}</div>`;
   const combatBannerEl = $('combatBanner');
-  combatBannerEl.innerHTML = `<div class="combat-stage-bg">${zoneBgHtml}</div><div class="combat-stage-vignette"></div><div class="combat-stage"><div class="combat-actors"><div class="combat-boss-center"><div class="combat-boss-stack"><div class="combat-boss-row"><div class="combat-boss-portrait-mid rarity-${b.rarity}" id="bossPortraitInBanner"><img src="${uiCtx.iconUrl(b.icon, color)}" alt="" class="boss-fallback-img" onerror="this.outerHTML='<span class=&quot;boss-emoji&quot;>${fallback}</span>'"></div></div><div class="combat-boss-nameplate" role="group" aria-label="Ennemi"><div class="combat-boss-nameplate-title"><span class="combat-boss-nameplate-name" style="color:${color}">${b.name}</span><span class="combat-boss-nameplate-level">Niv. ${b.level}</span></div><div class="combat-boss-nameplate-meta">${enemyTypeLine}</div><div class="bar combat-boss-nameplate-bar"><div class="bar-fill hp" id="bossHpBar" style="width:${hpPct}%"></div></div><div class="combat-boss-nameplate-hp combat-stat-line"><span>PV</span><strong id="bossHpText">❤️ ${b.hp} / ${b.hp_max}</strong></div></div></div></div></div>${combatHudHtml}</div>`;
+  combatBannerEl.innerHTML = `<div class="combat-stage-bg">${zoneBgHtml}</div><div class="combat-stage-vignette"></div><div class="combat-stage"><div class="combat-actors"><div class="combat-boss-center"><div class="combat-boss-stack"><div class="combat-boss-nameplate" role="group" aria-label="Ennemi"><div class="combat-boss-nameplate-title"><span class="combat-boss-nameplate-name" style="color:${color}">${b.name}</span><span class="combat-boss-nameplate-level">Niv. ${b.level}</span></div><div class="combat-boss-nameplate-meta">${enemyTypeLine}</div><div class="bar combat-boss-nameplate-bar"><div class="bar-fill hp" id="bossHpBar" style="width:${hpPct}%"></div></div><div class="combat-boss-nameplate-hp combat-stat-line"><span>PV</span><strong id="bossHpText">❤️ ${b.hp} / ${b.hp_max}</strong></div></div><div class="combat-boss-row"><div class="combat-boss-portrait-mid rarity-${b.rarity}" id="bossPortraitInBanner"><img src="${uiCtx.iconUrl(b.icon, color)}" alt="" class="boss-fallback-img" onerror="this.outerHTML='<span class=&quot;boss-emoji&quot;>${fallback}</span>'"></div></div></div></div></div>${combatHudHtml}</div>`;
   const spellDrawerEl = combatBannerEl.querySelector('#combatSpellDrawer');
   const itemDrawerEl = combatBannerEl.querySelector('#combatItemDrawer');
+  const summonDrawerEl = combatBannerEl.querySelector('#combatSummonDrawer');
   const toggleSpellBtn = combatBannerEl.querySelector('#toggleSpellDrawer');
   const toggleItemBtn = combatBannerEl.querySelector('#toggleItemDrawer');
-  const syncCombatDrawers = (spellOpen, itemOpen) => {
+  const toggleSummonBtn = combatBannerEl.querySelector('#toggleSummonDrawer');
+  const syncCombatDrawers = (spellOpen, itemOpen, summonOpen) => {
     spellDrawerEl?.classList.toggle('is-open', spellOpen);
     itemDrawerEl?.classList.toggle('is-open', itemOpen);
+    summonDrawerEl?.classList.toggle('is-open', !!summonOpen);
     toggleSpellBtn?.classList.toggle('is-active', spellOpen);
     toggleItemBtn?.classList.toggle('is-active', itemOpen);
+    toggleSummonBtn?.classList.toggle('is-active', !!summonOpen);
     toggleSpellBtn?.setAttribute('aria-expanded', spellOpen ? 'true' : 'false');
     toggleItemBtn?.setAttribute('aria-expanded', itemOpen ? 'true' : 'false');
+    toggleSummonBtn?.setAttribute('aria-expanded', summonOpen ? 'true' : 'false');
   };
   toggleSpellBtn?.addEventListener('click', () => {
     const wasOpen = spellDrawerEl?.classList.contains('is-open');
-    syncCombatDrawers(!wasOpen, false);
+    syncCombatDrawers(!wasOpen, false, false);
   });
   toggleItemBtn?.addEventListener('click', () => {
     const wasOpen = itemDrawerEl?.classList.contains('is-open');
-    syncCombatDrawers(false, !wasOpen);
+    syncCombatDrawers(false, !wasOpen, false);
+  });
+  toggleSummonBtn?.addEventListener('click', () => {
+    const wasOpen = summonDrawerEl?.classList.contains('is-open');
+    syncCombatDrawers(false, false, !wasOpen);
   });
   mountCombatArrivalHalo(combatBannerEl, state.session_current.startedAt);
   const remaining = state.session_current.exercises.filter((e) => !e.completed).length;
@@ -479,15 +532,29 @@ export function renderSessionView() {
       const isGood = isGoodMatchup(ex.type, b.type);
       const matchupBadge = isGood ? '<span class="matchup-good">🟢 +50%</span>' : '';
       const unitLabel = ex.unit === 'seconds' ? 'sec' : 'reps';
-      return `<div class="exercise-card ${ex.completed ? 'completed' : ''} ${isGood && !ex.completed ? 'good-matchup' : ''}" data-id="${ex.id}"><div class="exercise-icon">${ex.completed ? '✓' : TYPE_ICON[ex.type]}</div><div class="exercise-info"><div class="exercise-name">${ex.name} <span class="type-tag ${TYPE_CSS[ex.type]}">${TYPE_LABEL[ex.type]}</span> ${matchupBadge}</div><div class="exercise-meta">${ex.completed ? `${ex.sets}×${ex.reps} ${unitLabel}${ex.hasWeight ? ' @ ' + ex.weight + 'kg' : ''} · ${ex.damageDealt} dégâts${ex.recordBeaten ? ' · 🏆' : ''}` : `${ex.baseDamage}${recordBonus ? '+' + recordBonus : ''} dégâts · ${unitLabel}${ex.hasWeight ? ' · 🏋' : ''}`}</div></div><div class="exercise-arrow">${ex.completed ? '' : '›'}</div></div>`;
+      const fullExData = uiCtx.allExercises().find((e) => e.id === ex.id);
+      const exThumbUrl = ex.thumbUrl || fullExData?.thumbUrl || '';
+      const combatThumbHtml = exThumbUrl && !ex.completed
+        ? `<img class="ex-thumb ex-thumb--combat" src="${exThumbUrl}" alt="${ex.name}" onerror="this.outerHTML='<div class=\\'exercise-icon\\'>${TYPE_ICON[ex.type]}</div>'">`
+        : `<div class="exercise-icon">${ex.completed ? '✓' : TYPE_ICON[ex.type]}</div>`;
+      return `<div class="exercise-card ${ex.completed ? 'completed' : ''} ${isGood && !ex.completed ? 'good-matchup' : ''}" data-id="${ex.id}">${combatThumbHtml}<div class="exercise-info"><div class="exercise-name">${ex.name} <span class="type-tag ${TYPE_CSS[ex.type]}">${TYPE_LABEL[ex.type]}</span> ${matchupBadge}</div><div class="exercise-meta">${ex.completed ? `${ex.sets}×${ex.reps} ${unitLabel}${ex.hasWeight ? ' @ ' + ex.weight + 'kg' : ''} · ${ex.damageDealt} dégâts${ex.recordBeaten ? ' · 🏆' : ''}` : `${ex.baseDamage}${recordBonus ? '+' + recordBonus : ''} dégâts · ${unitLabel}${ex.hasWeight ? ' · 🏋' : ''}`}</div></div><div class="exercise-arrow-area">${!ex.completed ? `<button class="ex-detail-btn ex-detail-btn--combat" data-ex-detail="${ex.id}" aria-label="Détails">ℹ</button>` : ''}<div class="exercise-arrow">${ex.completed ? '' : '›'}</div></div></div>`;
     })
     .join('');
   list.querySelectorAll('.exercise-card').forEach((card) => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      // Si le clic est sur le bouton ℹ, ouvrir la modale de détail
+      if (e.target.closest('[data-ex-detail]')) return;
       const id = card.dataset.id;
       const ex = state.session_current.exercises.find((e) => e.id === id);
       if (!ex || ex.completed) return;
       openExerciseModal(id);
+    });
+  });
+  // Délégation des boutons ℹ de la liste combat
+  list.querySelectorAll('[data-ex-detail]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openExerciseDetail(btn.dataset.exDetail);
     });
   });
   const actLimitBtn = combatBannerEl.querySelector('#actLimit') || $('actLimit');
@@ -513,6 +580,11 @@ export function renderSessionView() {
   });
   document.querySelectorAll('#combatBanner [data-spell-idx]').forEach((btn) => {
     btn.addEventListener('click', () => uiCtx.castSpell(parseInt(btn.dataset.spellIdx, 10)));
+  });
+  document.querySelectorAll('#combatBanner [data-summon-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (uiCtx.activateSummon) uiCtx.activateSummon(btn.dataset.summonId);
+    });
   });
   const bannerHost = $('bossPortraitInBanner');
   if (bannerHost) {
@@ -550,6 +622,23 @@ export function openExerciseModal(exerciseId) {
   }
   $('exWeight').value = state.player.records[exerciseId] || 0;
   $('exWeightContainer').style.display = ex.hasWeight ? '' : 'none';
+  // Affichage du record personnel dans le modal
+  const recKg = ex.hasWeight ? (state.player.records[exerciseId] || 0) : 0;
+  const recVol = (state.player.records_vol || {})[exerciseId] || 0;
+  const recUnit = ex.unit === 'seconds' ? 'sec' : 'reps';
+  const recEl = $('exModalRecord');
+  if (recEl) {
+    if (recKg > 0 || recVol > 0) {
+      const parts = [];
+      if (recKg > 0) parts.push(`<strong style="color:var(--gold-bright);font-size:16px;">${recKg} kg</strong>`);
+      if (recVol > 0) parts.push(`<strong style="color:var(--gold-bright);font-size:16px;">${recVol} ${recUnit}</strong>`);
+      recEl.innerHTML = `🏆 Ton record : ${parts.join(' · ')}<br><span style="font-size:11px;color:var(--blood-bright);font-weight:700;letter-spacing:.04em;">→ Bats-le pour gagner +1 stat permanente !</span>`;
+      recEl.style.display = '';
+    } else {
+      recEl.innerHTML = `🏆 Pas encore de record — c'est ta première fois !`;
+      recEl.style.display = '';
+    }
+  }
   updateDamagePreview();
   uiCtx.openModal('exerciseModal');
 }

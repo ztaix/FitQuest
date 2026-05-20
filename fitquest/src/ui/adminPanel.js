@@ -49,6 +49,27 @@ export function createBindAdminListeners(deps) {
           getState().player.custom[t].splice(i, 1);
           saveState();
           getRenderAdmin()();
+        } else if (action === 'grant-summon') {
+          const state = getState();
+          if (!state.player.knownSummons) state.player.knownSummons = [];
+          const sid = b.dataset.summonId;
+          if (!state.player.knownSummons.includes(sid)) {
+            state.player.knownSummons.push(sid);
+            saveState();
+            showToast(`🌟 Invocation "${sid}" accordée au joueur`);
+          } else {
+            showToast('⚠ Invocation déjà connue');
+          }
+          getRenderAdmin()();
+        } else if (action === 'revoke-summon') {
+          const state = getState();
+          const sid = b.dataset.summonId;
+          if (!confirm(`Retirer l'invocation "${sid}" au joueur ?`)) return;
+          state.player.knownSummons = (state.player.knownSummons || []).filter((id) => id !== sid);
+          state.player.equippedSummons = (state.player.equippedSummons || [null, null, null]).map((id) => id === sid ? null : id);
+          saveState();
+          showToast(`❌ Invocation "${sid}" retirée`);
+          getRenderAdmin()();
         }
       });
     });

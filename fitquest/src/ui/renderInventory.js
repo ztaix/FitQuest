@@ -16,6 +16,13 @@ import { getEffectiveStats } from '../core/progression.js';
 import { uiCtx } from './renderContext.js';
 import { limits } from '../data/limits.js';
 
+const RARITY_COLOR_SUMMON = {
+  common: '#9CA3AF',
+  rare: '#3B82F6',
+  epic: '#8B5CF6',
+  legendary: '#F59E0B',
+};
+
 export function renderInventoryView() {
   const state = uiCtx.getState();
   const $ = uiCtx.$;
@@ -30,12 +37,14 @@ export function renderInventoryView() {
   $('tabWitch').style.display = uiCtx.inventoryUi.activeInvTab === 'witch' ? 'block' : 'none';
   $('tabMerchant').style.display = uiCtx.inventoryUi.activeInvTab === 'merchant' ? 'block' : 'none';
   $('tabLimites').style.display = uiCtx.inventoryUi.activeInvTab === 'limites' ? 'block' : 'none';
+  $('tabSummons').style.display = uiCtx.inventoryUi.activeInvTab === 'summons' ? 'block' : 'none';
   if (uiCtx.inventoryUi.activeInvTab === 'inventory') renderInventoryGrid();
   else if (uiCtx.inventoryUi.activeInvTab === 'spells') renderSpellEquip();
   else if (uiCtx.inventoryUi.activeInvTab === 'blacksmith') renderBlacksmith();
   else if (uiCtx.inventoryUi.activeInvTab === 'witch') renderWitch();
   else if (uiCtx.inventoryUi.activeInvTab === 'merchant') renderMerchant();
   else if (uiCtx.inventoryUi.activeInvTab === 'limites') renderLimites();
+  else if (uiCtx.inventoryUi.activeInvTab === 'summons') renderSummons();
 }
 
 export function renderInventoryGrid() {
@@ -376,14 +385,39 @@ export function renderMerchantBuy() {
   const state = uiCtx.getState();
   const $ = uiCtx.$;
   const ETHER_PRICE = 30;
+
+  // ── Accessoires vendus au marchand (commun + rare) ───────────────────────────
+  const ACCESSORY_SHOP = [
+    { id: 'ring_warrior',     price: 60  },
+    { id: 'ring_swift',       price: 60  },
+    { id: 'pendant_life',     price: 80  },
+    { id: 'ring_mage',        price: 160 },
+    { id: 'ring_iron',        price: 150 },
+    { id: 'necklace_guardian',price: 200 },
+    { id: 'amulet_regen',     price: 220 },
+  ];
+  const RARITY_COLORS_MAP = { common: '#9CA3AF', rare: '#60A5FA', epic: '#C084FC', legendary: '#FBBF24' };
+  const allEquip = uiCtx.allEquipment();
+  const accHtml = ACCESSORY_SHOP.map((entry, i) => {
+    const item = allEquip.find((w) => w.id === entry.id);
+    if (!item) return '';
+    const color = RARITY_COLORS_MAP[item.rarity] || '#fff';
+    const stats = Object.entries(item.stats || {})
+      .map(([k, v]) => `+${v} ${({ force: 'F', defense: 'D', agility: 'A', constitution: 'PV' })[k] || k}`)
+      .join(' · ');
+    const canBuy = state.player.gold >= entry.price;
+    return `<div class="shop-item"><div class="shop-icon" style="font-size:22px;line-height:1;">${item.slot === 'accessory' && item.id.startsWith('necklace') ? '📿' : item.id.startsWith('amulet') ? '🧿' : '💍'}</div><div class="shop-info"><div class="shop-name" style="color:${color}">${item.name}</div><div class="shop-desc">${stats} · ${item.desc || ''}</div></div><button class="shop-buy acc-buy-btn" data-acc-idx="${i}" ${canBuy ? '' : 'disabled'}>${entry.price} 💰</button></div>`;
+  }).join('');
+
   $('merchantBuy').innerHTML = `
+    <div class="section-label"><span>🧪 Consommables</span></div>
     <div class="shop-item"><div class="shop-icon">🧪</div><div class="shop-info"><div class="shop-name">Potion de soin</div><div class="shop-desc">Restaure 50 PV. (${state.player.potions} en stock)</div></div><button class="shop-buy" id="btnBuyPotion" ${state.player.gold < POTION_PRICE ? 'disabled' : ''}>${POTION_PRICE} 💰</button></div>
-    <div class="shop-item"><div class="shop-icon">💧</div><div class="shop-info"><div class="shop-name">Éther</div><div class="shop-desc">Restaure 10 MP. (${state.player.ethers} en stock)</div></div><button class="shop-buy" id="btnBuyEther" ${state.player.gold < ETHER_PRICE ? 'disabled' : ''}>${ETHER_PRICE} 💰</button></div>`;
+    <div class="shop-item"><div class="shop-icon">💧</div><div class="shop-info"><div class="shop-name">Éther</div><div class="shop-desc">Restaure 10 MP. (${state.player.ethers} en stock)</div></div><button class="shop-buy" id="btnBuyEther" ${state.player.gold < ETHER_PRICE ? 'disabled' : ''}>${ETHER_PRICE} 💰</button></div>
+    <div class="section-label" style="margin-top:16px;"><span>💍 Accessoires</span></div>
+    ${accHtml}`;
+
   $('btnBuyPotion').addEventListener('click', () => {
-    if (state.player.gold < POTION_PRICE) {
-      uiCtx.showToast('⚠ Or insuffisant');
-      return;
-    }
+    if (state.player.gold < POTION_PRICE) { uiCtx.showToast('⚠ Or insuffisant'); return; }
     state.player.gold -= POTION_PRICE;
     state.player.potions += 1;
     uiCtx.saveState();
@@ -391,15 +425,27 @@ export function renderMerchantBuy() {
     uiCtx.showToast('🧪 Potion achetée');
   });
   $('btnBuyEther').addEventListener('click', () => {
-    if (state.player.gold < ETHER_PRICE) {
-      uiCtx.showToast('⚠ Or insuffisant');
-      return;
-    }
+    if (state.player.gold < ETHER_PRICE) { uiCtx.showToast('⚠ Or insuffisant'); return; }
     state.player.gold -= ETHER_PRICE;
     state.player.ethers += 1;
     uiCtx.saveState();
     renderInventoryView();
     uiCtx.showToast('💧 Éther acheté');
+  });
+  $('merchantBuy').querySelectorAll('.acc-buy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const entry = ACCESSORY_SHOP[parseInt(btn.dataset.accIdx, 10)];
+      if (!entry) return;
+      if (state.player.gold < entry.price) { uiCtx.showToast('⚠ Or insuffisant'); return; }
+      const item = allEquip.find((w) => w.id === entry.id);
+      if (!item) return;
+      state.player.gold -= entry.price;
+      const uid = 'i_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+      state.player.weapons.push({ ...item, combLevel: 0, uid });
+      uiCtx.saveState();
+      renderInventoryView();
+      uiCtx.showToast(`💍 ${item.name} acheté !`);
+    });
   });
 }
 
@@ -629,6 +675,107 @@ export function renderLimites() {
       uiCtx.saveState();
       renderLimites();
       uiCtx.showToast(`💥 <strong>${lim.name}</strong> équipée !`, 2500);
+    });
+  });
+}
+export function renderSummons() {
+  const state = uiCtx.getState();
+  const $ = uiCtx.$;
+  const allSummons = uiCtx.allSummons ? uiCtx.allSummons() : [];
+  const known = state.player.knownSummons || [];
+  const equipped = state.player.equippedSummons || [null, null, null];
+
+  // ── Emplacements équipés ─────────────────────────────────────────────
+  const slotsHtml = [0, 1, 2].map((idx) => {
+    const sId = equipped[idx];
+    const s = sId ? allSummons.find((x) => x.id === sId) : null;
+    if (s) {
+      const col = RARITY_COLOR_SUMMON[s.rarity] || '#9CA3AF';
+      return `<div class="spell-slot-card" style="border-color:${col};background:rgba(0,0,0,0.4);">
+        <div style="font-size:28px;text-align:center;">${s.icon}</div>
+        <div style="font-size:12px;font-weight:700;color:${col};text-align:center;">${s.name}</div>
+        <div style="font-size:10px;color:var(--text-dim);text-align:center;margin:4px 0;">${s.desc.substring(0,60)}…</div>
+        <button class="summon-unequip-btn" data-slot="${idx}" style="width:100%;font-size:10px;padding:4px;margin-top:4px;background:rgba(139,0,0,0.2);border:1px solid var(--blood-bright);color:var(--blood-bright);border-radius:5px;cursor:pointer;">Retirer</button>
+      </div>`;
+    }
+    return `<div class="spell-slot-card" style="border:1px dashed var(--border);background:rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;min-height:90px;">
+      <span style="color:var(--text-dim);font-size:11px;">Emplacement ${idx + 1} vide</span>
+    </div>`;
+  }).join('');
+
+  // ── Catalogue ─────────────────────────────────────────────────────────
+  const catalogHtml = allSummons.map((s) => {
+    const isKnown = known.includes(s.id);
+    const equippedSlot = equipped.indexOf(s.id);
+    const isEquipped = equippedSlot >= 0;
+    const col = RARITY_COLOR_SUMMON[s.rarity] || '#9CA3AF';
+    const rarityUp = (s.rarity || 'common').charAt(0).toUpperCase() + (s.rarity || 'common').slice(1);
+
+    let equipBtns = '';
+    if (isKnown && !isEquipped) {
+      const freeSlots = [0, 1, 2].filter((i) => !equipped[i]);
+      if (freeSlots.length > 0) {
+        equipBtns = freeSlots.map((i) => `<button class="summon-equip-btn" data-summon="${s.id}" data-slot="${i}" style="font-size:10px;padding:4px 8px;background:rgba(99,102,241,0.2);border:1px solid #6366f1;color:#a5b4fc;border-radius:5px;cursor:pointer;margin:2px;">Slot ${i + 1}</button>`).join('');
+        equipBtns = `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:2px;">${equipBtns}</div>`;
+      } else {
+        equipBtns = `<div style="font-size:10px;color:var(--text-dim);margin-top:6px;">3 emplacements pleins — retirez une invocation d'abord.</div>`;
+      }
+    }
+
+    if (isKnown) {
+      return `<div style="background:rgba(0,0,0,0.4);border:1px solid ${col};border-radius:10px;padding:12px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:28px;">${s.icon}</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:${col};">${s.name} ${isEquipped ? ('<span style="font-size:10px;background:' + col + ';color:#000;padding:1px 5px;border-radius:4px;">Équipée – Slot ' + (equippedSlot + 1) + '</span>') : ''}</div>
+            <div style="font-size:10px;color:var(--text-dim);">${rarityUp} · ${s.element || 'Neutre'}</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${s.desc}</div>
+        <div style="font-size:10px;color:#fbbf24;font-style:italic;">${s.flavor}</div>
+        ${equipBtns}
+      </div>`;
+    }
+    return `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;opacity:0.6;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;filter:grayscale(1);">🔒</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text-dim);">${s.name}</div>
+          <div style="font-size:10px;color:var(--text-dim);">${rarityUp} · ${s.element || 'Neutre'}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:6px;">📍 Obtention : ${s.obtainDesc}</div>
+    </div>`;
+  }).join('') || '<div class="empty-state"><span class="icon">🌟</span>Aucune invocation disponible.</div>';
+
+  $('summonSlots').innerHTML = `<div class="spell-slots-grid">${slotsHtml}</div>`;
+  $('summonCatalog').innerHTML = catalogHtml;
+
+  // Retirer une invocation
+  $('summonSlots').querySelectorAll('.summon-unequip-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = parseInt(btn.dataset.slot, 10);
+      const id = state.player.equippedSummons[slot];
+      state.player.equippedSummons[slot] = null;
+      uiCtx.saveState();
+      renderSummons();
+      const s = allSummons.find((x) => x.id === id);
+      uiCtx.showToast(`🌟 ${s ? s.name : id} retirée du slot ${slot + 1}`);
+    });
+  });
+
+  // Équiper une invocation
+  $('summonCatalog').querySelectorAll('.summon-equip-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const summonId = btn.dataset.summon;
+      const slot = parseInt(btn.dataset.slot, 10);
+      const prev = state.player.equippedSummons.indexOf(summonId);
+      if (prev >= 0) state.player.equippedSummons[prev] = null;
+      state.player.equippedSummons[slot] = summonId;
+      uiCtx.saveState();
+      renderSummons();
+      const s = allSummons.find((x) => x.id === summonId);
+      uiCtx.showToast(`🌟 ${s ? s.name : summonId} équipée en slot ${slot + 1}`);
     });
   });
 }

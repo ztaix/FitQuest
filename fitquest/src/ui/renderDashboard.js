@@ -44,7 +44,8 @@ export function renderZoneBanner() {
     particles += `<div class="zone-particle" style="left:${left}%;width:${size}px;height:${size}px;background:${zone.accent};opacity:0.6;animation-duration:${dur}s;animation-delay:-${delay}s;"></div>`;
   }
   const elTag = zone.element ? elementTag(zone.element) : '';
-  banner.innerHTML = `<div class="zone-banner-bg">${bgHtml}</div><div class="zone-banner-overlay"></div><div class="zone-particles">${particles}</div><div class="zone-banner-content"><div class="zone-banner-row"><div><div class="zone-banner-title">${zone.name}</div><div class="zone-banner-meta">Niveau ${zone.levelMin}-${zone.levelMax} · ${state.player.unlockedZones.length}/${uiCtx.allZones().length} zones ${elTag}</div></div><button class="zone-banner-action" id="btnTravel">🗺 Voyager</button></div></div>`;
+  banner.style.height = '190px';
+  banner.innerHTML = `<div class="zone-banner-bg" style="position:absolute;top:0;left:0;right:0;bottom:0;">${bgHtml}</div><div class="zone-banner-overlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(10,6,18,0.1) 0%,rgba(10,6,18,0.65) 100%);"></div><div class="zone-particles" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:1;">${particles}</div><div class="zone-banner-content" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:flex-end;padding:14px 16px;z-index:2;"><div class="zone-banner-row" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;"><div><div class="zone-banner-title" style="font-family:'Cinzel',serif;font-weight:900;font-size:20px;letter-spacing:0.1em;text-transform:uppercase;color:${zone.accent || '#D4AF37'};text-shadow:0 2px 12px rgba(0,0,0,0.8);">${zone.name}</div><div class="zone-banner-meta" style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;">Niveau ${zone.levelMin}-${zone.levelMax} · ${state.player.unlockedZones.length}/${uiCtx.allZones().length} zones ${elTag}</div></div><button class="zone-banner-action" id="btnTravel" style="background:rgba(0,0,0,0.6);border:1px solid ${zone.accent || '#D4AF37'};color:${zone.accent || '#D4AF37'};padding:8px 12px;border-radius:8px;font-family:'Cinzel',serif;font-weight:700;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;flex-shrink:0;">🗺 Voyager</button></div></div>`;
   $('btnTravel').addEventListener('click', openZoneTravel);
 }
 
@@ -250,6 +251,14 @@ export function renderHero() {
   if ($('dashPotionCount')) $('dashPotionCount').textContent = state.player.potions;
   if ($('dashEtherCount')) $('dashEtherCount').textContent = state.player.ethers;
   if ($('dashStepBalance')) $('dashStepBalance').textContent = state.player.stepBalance ?? 0;
+  // Barre de Limite sur le dashboard
+  if ($('dashLimitFill')) {
+    const limitBar = state.player.limitBar || 0;
+    const limitPct = Math.round(limitBar * 100);
+    $('dashLimitFill').style.width = limitPct + '%';
+    $('dashLimitFill').classList.toggle('dash-limit-fill--ready', limitBar >= 1.0);
+    if ($('dashLimitPct')) $('dashLimitPct').textContent = limitBar >= 1.0 ? 'PRÊTE !' : limitPct + '%';
+  }
   const btnStart = $('btnStartSession');
   if (btnStart) {
     if (state.player.recovering) btnStart.textContent = '⚕ Récupérer';
@@ -334,9 +343,16 @@ export function openEquipPicker(slotKey) {
   } else {
     $('equipPickerCurrent').innerHTML = `<div class="empty-state" style="padding:14px;font-size:12px;">Aucun objet équipé sur ce slot.</div>`;
   }
-  const compatible = state.player.weapons.filter((w) => w.slot === slotKey);
+  // Les slots accessoire_1/2 acceptent tous les items slot:'accessory'
+  const isAccessorySlot = slotKey === 'accessory_1' || slotKey === 'accessory_2';
+  const compatible = state.player.weapons.filter((w) =>
+    isAccessorySlot ? w.slot === 'accessory' : w.slot === slotKey
+  );
   if (compatible.length === 0) {
-    $('equipPickerList').innerHTML = `<div class="empty-state" style="padding:14px;font-size:12px;">Aucune arme compatible dans ton sac.<br><small>Visite le ⚒ Forgeron pour en forger.</small></div>`;
+    const hint = isAccessorySlot
+      ? 'Aucun accessoire dans ton sac.<br><small>Achète des bagues chez le 🛒 Marchand ou bats des boss.</small>'
+      : 'Aucune arme compatible dans ton sac.<br><small>Visite le ⚒ Forgeron pour en forger.</small>';
+    $('equipPickerList').innerHTML = `<div class="empty-state" style="padding:14px;font-size:12px;">${hint}</div>`;
   } else {
     $('equipPickerList').innerHTML = compatible
       .map((w) => {
@@ -352,7 +368,7 @@ export function openEquipPicker(slotKey) {
       .join('');
     $('equipPickerList').querySelectorAll('[data-pick-uid]').forEach((div) => {
       div.addEventListener('click', () => {
-        uiCtx.equipItem(div.dataset.pickUid);
+        uiCtx.equipItem(div.dataset.pickUid, isAccessorySlot ? slotKey : undefined);
         uiCtx.closeModal('equipPickerModal');
         uiCtx.refreshDashboard();
         uiCtx.showToast('⚔ Objet équipé');
@@ -401,24 +417,31 @@ export function renderRecords() {
       const bonus = recordsBonus[e.id] || 0;
       const hasRecord = kg > 0 || vol > 0;
       const unit = e.unit === 'seconds' ? 'sec' : 'reps';
-      const parts = [];
-      if (kg > 0) parts.push(`${kg} kg`);
-      if (vol > 0) parts.push(`${vol} ${unit}`);
-      const recStr = hasRecord ? parts.join(' · ') : '–';
       const bonusStr = bonus > 0 ? `<span class="rec-ex-bonus">+${bonus} ${statIcon}</span>` : '';
-      return `<div class="rec-ex-row ${hasRecord ? '' : 'rec-ex-row--empty'}">
-        <span class="rec-ex-name">${e.name}${bonusStr}</span>
-        <span class="rec-ex-val ${hasRecord ? 'rec-ex-val--set' : ''}">${recStr}</span>
+      const rowBaseStyle = 'display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;';
+      if (!hasRecord) {
+        return `<div class="rec-ex-row rec-ex-row--empty" style="${rowBaseStyle}opacity:0.45;">
+          <span class="rec-ex-name" style="color:var(--text-dim,rgba(255,255,255,0.6));flex:1;">${e.name}${bonusStr}</span>
+          <span class="rec-ex-val" style="color:var(--text-faint,rgba(255,255,255,0.3));font-style:italic;font-size:11px;">Pas encore de record</span>
+        </div>`;
+      }
+      const parts = [];
+      if (kg > 0) parts.push(`<strong style="font-size:15px;color:var(--gold-bright,#F5D76E)">${kg} kg</strong>`);
+      if (vol > 0) parts.push(`<strong style="font-size:15px;color:var(--gold-bright,#F5D76E)">${vol} ${unit}</strong>`);
+      const recStr = parts.join(' <span style="opacity:.5">·</span> ');
+      return `<div class="rec-ex-row" style="${rowBaseStyle}">
+        <span class="rec-ex-name" style="color:var(--text-dim,rgba(255,255,255,0.6));flex:1;">${e.name}${bonusStr}</span>
+        <span class="rec-ex-val rec-ex-val--set" style="color:var(--gold,#D4AF37);font-family:'Cinzel',serif;font-weight:700;font-size:12px;">🏆 ${recStr}</span>
       </div>`;
     }).join('');
 
-    return `<div class="rec-group" data-rec-type="${type}">
-      <div class="rec-group-header" data-rec-toggle="${type}">
-        <span class="rec-group-title">${icon} ${label}</span>
-        <span class="rec-group-total">${totalLabel}</span>
-        <span class="rec-group-chevron">${isOpen ? '▲' : '▼'}</span>
+    return `<div class="rec-group" data-rec-type="${type}" style="margin-bottom:8px;border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:10px;overflow:hidden;">
+      <div class="rec-group-header" data-rec-toggle="${type}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.25);cursor:pointer;user-select:none;">
+        <span class="rec-group-title" style="font-family:'Cinzel',serif;font-weight:700;font-size:12px;color:var(--gold,#D4AF37);flex:1;letter-spacing:0.08em;">${icon} ${label}</span>
+        <span class="rec-group-total" style="font-size:12px;color:#7DD3FC;font-weight:700;">${totalLabel}</span>
+        <span class="rec-group-chevron" style="font-size:10px;color:var(--text-faint,rgba(255,255,255,0.3));">${isOpen ? '▲' : '▼'}</span>
       </div>
-      <div class="rec-group-body" style="display:${isOpen ? 'block' : 'none'};">${rows}</div>
+      <div class="rec-group-body" style="display:${isOpen ? 'block' : 'none'};padding:6px 0;">${rows}</div>
     </div>`;
   }).join('');
 
@@ -450,16 +473,25 @@ export function renderBoss() {
       ? `<div style="font-size:11px;color:var(--blood-bright);margin-top:6px;">⚔ Déjà blessé (${b.hp_max - b.hp} dégâts encaissés)</div>`
       : '';
   const typeTag = `<span class="type-tag ${TYPE_CSS[b.type]} cycle-trigger specialty-cycle-trigger" data-cycle-kind="specialty" title="Voir le cadran des spécialités">${TYPE_ICON[b.type]} ${TYPE_LABEL[b.type]}</span>`;
-  container.innerHTML = `<div class="boss-display"><div class="boss-portrait rarity-${b.rarity}">${iconHtml}</div><div class="boss-name rarity-${b.rarity}">${b.name}</div><div class="boss-meta">Niveau ${b.level} · <span class="rarity-tag" style="color:${color}">${uiCtx.rarityLabel(b.rarity)}</span> · ${typeTag} ${b.element ? elementTag(b.element, { interactive: true }) : ''}</div><div class="boss-hp"><div class="bar-label" style="justify-content:center;gap:8px;"><span>❤️ ${b.hp} / ${b.hp_max}</span></div><div class="bar"><div class="bar-fill hp" style="width:${hpPct}%"></div></div></div><div class="boss-desc">« ${b.desc} »</div>${damageNote}<div class="boss-rewards"><span class="reward">⚔️ ${b.attack}</span><span class="reward">🛡 ${b.defense}</span><span class="reward">💰 ${b.gold}</span><span class="reward">✨ ${b.xp} XP</span></div></div>`;
+  container.innerHTML = `<div class="boss-display">
+  <div class="boss-name rarity-${b.rarity}">${b.name}</div>
+  <div class="boss-meta">Niveau ${b.level} · <span class="rarity-tag" style="color:${color}">${uiCtx.rarityLabel(b.rarity)}</span> · ${typeTag} ${b.element ? elementTag(b.element, { interactive: true }) : ''}</div>
+  <div class="boss-desc">« ${b.desc} »</div>
+  <div class="boss-rewards"><span class="reward">⚔️ ${b.attack}</span><span class="reward">🛡 ${b.defense}</span><span class="reward">💰 ${b.gold}</span><span class="reward">✨ ${b.xp} XP</span></div>
+  <div class="boss-portrait rarity-${b.rarity}" style="margin:14px auto 10px;display:flex;justify-content:center;">${iconHtml}</div>
+  <div class="boss-hp"><div class="bar-label" style="justify-content:center;gap:8px;"><span>❤️ ${b.hp} / ${b.hp_max}</span></div><div class="bar"><div class="bar-fill hp" style="width:${hpPct}%"></div></div></div>
+  ${damageNote}
+</div>`;
 }
 
 export function renderDashboardAll() {
-  uiCtx.tryUnlockZones();
-  renderZoneBanner();
-  renderRegionalBoss();
-  renderHero();
-  renderStats();
-  renderEquipment();
-  renderRecords();
-  renderBoss();
+  const safe = (name, fn) => { try { fn(); } catch (e) { console.error('[Dashboard] ' + name + ' failed:', e); } };
+  safe('tryUnlockZones', () => uiCtx.tryUnlockZones());
+  safe('renderZoneBanner', renderZoneBanner);
+  safe('renderRegionalBoss', renderRegionalBoss);
+  safe('renderHero', renderHero);
+  safe('renderStats', renderStats);
+  safe('renderEquipment', renderEquipment);
+  safe('renderRecords', renderRecords);
+  safe('renderBoss', renderBoss);
 }

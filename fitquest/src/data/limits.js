@@ -5,7 +5,9 @@
  *
  * unlock.type : 'level' | 'kill_count' | 'limit_uses' | 'quest'
  * effect      : 'damage_flat' | 'damage_pct' | 'heal_flat' | 'heal_pct' | 'buff_atk'
- * value       : dégâts/soin plat, % boss HP × 100 (ex: 20 = 20%), ou nb exercices boostés
+ * value       : dégâts/soin plat, % boss HP × 100 (ex: 15 = 15%), ou nb exercices boostés
+ * fillRate    : multiplicateur de remplissage de la barre (1.0 = normal, <1 = plus lent)
+ *               T1 = 1.0 (4-5 coups), T2 = 0.65 (6-7 coups), T3 = 0.45 (10 coups)
  */
 export const limits = [
 
@@ -16,7 +18,8 @@ export const limits = [
     tier: 1,
     icon: 'sword-clash',
     effect: 'damage_flat',
-    value: 220,
+    value: 75,
+    fillRate: 1.0,
     barRequired: 1.0,
     desc: 'Une charge furieuse qui laboure l\'ennemi de coups rapides.',
     unlock: { type: 'level', value: 1 },  // débloquée dès le départ
@@ -28,6 +31,7 @@ export const limits = [
     icon: 'power-lightning',
     effect: 'buff_atk',
     value: 3,         // 3 prochains exercices font ×2 dégâts
+    fillRate: 1.0,
     barRequired: 1.0,
     desc: 'L\'adrénaline monte. Tes 3 prochains exercices infligent le double de dégâts.',
     unlock: { type: 'level', value: 5 },
@@ -39,6 +43,7 @@ export const limits = [
     icon: 'heart-shield',
     effect: 'heal_pct',
     value: 40,        // 40 % des PV max
+    fillRate: 1.0,
     barRequired: 1.0,
     desc: 'Tu puises dans tes dernières réserves et récupères 40 % de tes PV.',
     unlock: { type: 'kill_count', bossId: 'wolf_alpha', kills: 3 },
@@ -51,9 +56,10 @@ export const limits = [
     tier: 2,
     icon: 'sword-spin',
     effect: 'damage_pct',
-    value: 20,        // 20 % des PV max du boss
+    value: 15,        // 15 % des PV max du boss
+    fillRate: 0.65,
     barRequired: 1.0,
-    desc: 'Un coup d\'une violence absolue qui arrache 20 % des PV du boss.',
+    desc: 'Un coup d\'une violence absolue qui arrache 15 % des PV du boss.',
     unlock: { type: 'level', value: 15 },
   },
   {
@@ -62,7 +68,8 @@ export const limits = [
     tier: 2,
     icon: 'blood-swirl',
     effect: 'damage_flat',
-    value: 500,
+    value: 180,
+    fillRate: 0.65,
     barRequired: 1.0,
     desc: 'Une onde de choc écarlate qui dévaste tout sur son passage.',
     unlock: { type: 'limit_uses', limitId: 'blade_rush', uses: 10 },
@@ -74,6 +81,7 @@ export const limits = [
     icon: 'fire-bird',
     effect: 'heal_pct',
     value: 70,        // 70 % des PV max
+    fillRate: 0.65,
     barRequired: 1.0,
     desc: 'Tu renaîs de tes cendres. Récupère 70 % de tes PV et booste ton prochain exercice.',
     unlock: { type: 'kill_count', bossId: 'wolf_king', kills: 1 },
@@ -86,9 +94,10 @@ export const limits = [
     tier: 3,
     icon: 'omega',
     effect: 'damage_pct',
-    value: 35,        // 35 % des PV max du boss
+    value: 25,        // 25 % des PV max du boss
+    fillRate: 0.45,
     barRequired: 1.0,
-    desc: 'La technique ultime. Arrache 35 % des PV du boss en un seul coup dévastateur.',
+    desc: 'La technique ultime. Arrache 25 % des PV du boss en un seul coup dévastateur.',
     unlock: { type: 'level', value: 30 },
   },
   {
@@ -97,7 +106,8 @@ export const limits = [
     tier: 3,
     icon: 'explosive-meeting',
     effect: 'damage_flat',
-    value: 1200,
+    value: 380,
+    fillRate: 0.45,
     barRequired: 1.0,
     desc: 'L\'attaque la plus destructrice connue. Rien ne lui résiste.',
     unlock: { type: 'limit_uses', limitId: 'limit_slash', uses: 5 },
