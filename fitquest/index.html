@@ -89,17 +89,21 @@
   <div id="preSessionContent"></div>
 </div>
 
-<div class="session-view" id="viewSession">
-  <div class="session-header">
-    <button class="session-back" data-back="abandon">×</button>
-    <div class="session-title">⚔ Combat en cours</div>
-  </div>
-  <div class="combat-banner" id="combatBanner"></div>
-  <div class="section-label"><span>Vos coups à porter</span><span style="font-size:10px;color:var(--text-dim);" id="exerciseCount"></span></div>
-  <div id="sessionExerciseList"></div>
-  <div style="margin-top:20px;display:grid;grid-template-columns:1fr auto;gap:10px;">
-    <button class="btn btn-success" id="btnFinishSession" style="font-size:14px;">Terminer la séance</button>
-    <button class="btn" id="btnAbandonSession" style="background:rgba(139,0,0,0.25);border:1px solid var(--blood-bright);color:var(--blood-bright);font-size:12px;padding:0 14px;white-space:nowrap;" title="Fuir le combat — le boss s'enfuit, aucun gain">🏃 Fuir</button>
+<div class="session-view session-view--combat" id="viewSession">
+  <div class="combat-screen">
+    <div class="combat-screen-main">
+      <div class="combat-banner" id="combatBanner"></div>
+    </div>
+    <aside class="combat-exercise-rail" id="combatExerciseRail" aria-label="Exercices de la séance">
+      <div class="combat-exercise-rail-inner" id="sessionExerciseList"></div>
+    </aside>
+    <footer class="combat-screen-footer">
+      <button class="btn btn-success combat-finish-btn" id="btnFinishSession" type="button">
+        <span class="combat-finish-label">Terminer</span>
+        <span class="combat-finish-count" id="exerciseCount"></span>
+      </button>
+      <button class="btn combat-flee-btn" id="btnAbandonSession" title="Fuir le combat — le boss s'enfuit, aucun gain">🏃 Fuir</button>
+    </footer>
   </div>
 </div>
 
